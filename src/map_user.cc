@@ -1,9 +1,9 @@
 #include "map_builder.h"
 
 #include <assert.h>
-#include <iostream> 
-#include <Eigen/Core> 
-#include <Eigen/Geometry> 
+#include <iostream>
+#include <Eigen/Core>
+#include <Eigen/Geometry>
 #include <opencv2/core/eigen.hpp>
 #include <boost/serialization/serialization.hpp>
 
@@ -22,16 +22,12 @@
 #include "debug.h"
 #include "map_user.h"
 
-
-MapUser::MapUser(){
-}
-
-MapUser::MapUser(RelocalizationConfigs& configs, ros::NodeHandle nh): _configs(configs), _stop(false){
+MapUser::MapUser(RelocalizationConfigs& configs, std::shared_ptr<rclcpp::Node> node): Node("map_user_node"), _config(configs), _stop(false){
   _camera = std::shared_ptr<Camera>(new Camera(configs.camera_config_path));
   _feature_detector = std::shared_ptr<FeatureDetector>(new FeatureDetector(configs.plnet_config));
   _point_matcher = std::shared_ptr<PointMatcher>(new PointMatcher(configs.point_matcher_config));
   _map = std::shared_ptr<Map>(new Map());
-  _ros_publisher = std::shared_ptr<RosPublisher>(new RosPublisher(_configs.ros_publisher_config, nh));
+  _ros_publisher = std::shared_ptr<RosPublisher>(new RosPublisher(_config.ros_publisher_config));
 
   _reloc_message = std::shared_ptr<RelocMessage>(new RelocMessage);
 }
@@ -59,19 +55,20 @@ void MapUser::PubMap(){
     if(kv.second->IsValid() && kv.second->EndpointsValid()){
       const Vector6d& endpoints = kv.second->GetEndpoints();
       mapline_message->ids.push_back(kv.first);
-      mapline_message->lines.emplace_back(endpoints); 
+      mapline_message->lines.emplace_back(endpoints);
     }
   }
 
   while(!_stop){
-    double current_time = ros::Time::now().toSec();
+    double current_time = this->get_clock()->now().seconds();
+    //double current_time = ros::Time::now().toSec();
     keyframe_message->time = current_time;
     map_message->time = current_time;
     mapline_message->time = current_time;
 
     _ros_publisher->PublisheKeyframe(keyframe_message);
     _ros_publisher->PublishMap(map_message);
-    _ros_publisher->PublishMapLine(mapline_message);  
+    _ros_publisher->PublishMapLine(mapline_message);
     std::this_thread::sleep_for(std::chrono::seconds(1));
   }
 }
@@ -95,10 +92,10 @@ void MapUser::LoadMap(const std::string& map_root){
   _junction_database->LoadVocabulary(_map->_junction_voc);
 
   _reloc_message->map_scale = _map->MapScale() / 80;
-  
+
   _visualization_thread = std::thread(boost::bind(&MapUser::PubMap, this));
 }
-  
+
 void MapUser::LoadVocabulary(const std::string voc_path){
   _database->LoadVocabulary(voc_path);
 }
@@ -115,10 +112,12 @@ bool MapUser::Relocalization(cv::Mat& image, Eigen::Matrix4d& pose){
   frame->AddLeftFeatures(features, feature_lines);
   frame->AddJunctions(junctions);
 
-  ros::Time now = ros::Time::now();
-  if(_configs.ros_publisher_config.feature){
+  rclcpp::Time now = this->get_clock()->now();
+  //ros::Time now = ros::Time::now();
+  if(_config.ros_publisher_config.feature){
     FeatureMessgaePtr feature_message = std::shared_ptr<FeatureMessgae>(new FeatureMessgae);
-    feature_message->time = now.toSec();
+    feature_message->time = now.seconds();
+    //feature_message->time = now.toSec();
     feature_message->image = image_rect;
     feature_message->keypoints = frame->GetAllKeypoints();
     feature_message->fm_type = FeatureMessgaeType::RelocFeature;
@@ -126,7 +125,7 @@ bool MapUser::Relocalization(cv::Mat& image, Eigen::Matrix4d& pose){
     _ros_publisher->PublishFeature(feature_message);
   }
 
-  DBoW2::WordIdToFeatures word_features, junction_word_features; 
+  DBoW2::WordIdToFeatures word_features, junction_word_features;
   DBoW2::BowVector bow_vector, junction_bow_vector;
   std::vector<DBoW2::WordId> word_of_features, junction_word_of_features;
   _database->FrameToBow(features, word_features, bow_vector, word_of_features);
@@ -177,7 +176,7 @@ bool MapUser::Relocalization(cv::Mat& image, Eigen::Matrix4d& pose){
   // grouping
   std::map<FramePtr, RelocalizationGroupCandidate> group_candidates;
   FramePtr best_deputy;
-  double best_group_score = -1; 
+  double best_group_score = -1;
   std::map<FramePtr, RelocalizationGroupCandidate>::iterator relocalization_group_iter;
   std::map<FramePtr, double>::iterator fs_it = frame_scores.begin();
   for(; fs_it != frame_scores.end(); fs_it++){
@@ -213,7 +212,7 @@ bool MapUser::Relocalization(cv::Mat& image, Eigen::Matrix4d& pose){
         best_group_score = group_candidate.group_score;
         best_deputy = deputy_of_group;
       }
-    }   
+    }
   }
 
   if(best_group_score < 0) return false;
@@ -228,7 +227,7 @@ bool MapUser::Relocalization(cv::Mat& image, Eigen::Matrix4d& pose){
     }
 
     if(group_scores.size() > CoviFrameScoreNum){
-      std::sort(group_scores.rbegin(), group_scores.rend()); 
+      std::sort(group_scores.rbegin(), group_scores.rend());
     }
 
     double sum_group_score = 0;
@@ -255,7 +254,7 @@ bool MapUser::Relocalization(cv::Mat& image, Eigen::Matrix4d& pose){
     double group_score_thr = best_group_score * 0.5;
     auto it = group_candidates.begin();
     for(; it != group_candidates.end();){
-      if(it->second.group_score < group_score_thr){  
+      if(it->second.group_score < group_score_thr){
         it = group_candidates.erase(it);
       }else{
         it++;
@@ -274,8 +273,8 @@ bool MapUser::Relocalization(cv::Mat& image, Eigen::Matrix4d& pose){
     for(auto& kv : group_vector){
       double frame_time = kv.first->GetTimestamp();
       double junction_frame_scores = _junction_database->Score(_junction_database->_frame_bow_vectors[kv.first], junction_bow_vector);
-      std::cout << "frmae time = " << std::fixed << std::setprecision(9) << frame_time 
-                << ", group_score = " << kv.second.group_score 
+      std::cout << "frmae time = " << std::fixed << std::setprecision(9) << frame_time
+                << ", group_score = " << kv.second.group_score
                 << ", junction_frame_scores = " << junction_frame_scores
                 << std::endl;
 
@@ -331,11 +330,11 @@ bool MapUser::Relocalization(cv::Mat& image, Eigen::Matrix4d& pose){
     kv.second.group_score += (junction_frame_scores * (1 + rate));
 
     if(print_debug_info){
-      std::cout << "frmae time = " << std::fixed << std::setprecision(9) << kf->GetTimestamp() 
-                << ", rate = " << rate 
-                << ", score = " << _junction_database->Score(_junction_database->_frame_bow_vectors[kv.first], junction_bow_vector) 
-                << ", match_num = " << match_num 
-                << ", line_match_num = " << line_match_num 
+      std::cout << "frmae time = " << std::fixed << std::setprecision(9) << kf->GetTimestamp()
+                << ", rate = " << rate
+                << ", score = " << _junction_database->Score(_junction_database->_frame_bow_vectors[kv.first], junction_bow_vector)
+                << ", match_num = " << match_num
+                << ", line_match_num = " << line_match_num
                 << std::endl;
 
       std::string image_root = "/media/bssd/datasets/tartanair/euroc_style/with_time/abandonedfactory/P000/cam0/data";
@@ -360,7 +359,7 @@ bool MapUser::Relocalization(cv::Mat& image, Eigen::Matrix4d& pose){
   // feature matching
   std::vector<cv::DMatch> relocalization_matches;
   FramePtr relocalization_frame;
-  const size_t GoodCandidateNum = std::min((size_t)3, group_vector.size());    
+  const size_t GoodCandidateNum = std::min((size_t)3, group_vector.size());
   const Eigen::Matrix<float, 259, Eigen::Dynamic>& query_features = frame->GetAllFeatures();
   for(size_t i = 0; i < GoodCandidateNum; i++){
     FramePtr good_candidate = group_vector[i].first;
@@ -374,7 +373,7 @@ bool MapUser::Relocalization(cv::Mat& image, Eigen::Matrix4d& pose){
 
     // if(relocalization_matches.size() > 50) break;
   }
-  if(relocalization_matches.size() < _configs.min_inlier) return false;
+  if(relocalization_matches.size() < _config.min_inlier) return false;
 
   // std::map<int, MappointPtr> matched_mappoints;
   std::vector<MappointPtr> matched_mappoints(frame->FeatureNum(), nullptr);
@@ -389,9 +388,9 @@ bool MapUser::Relocalization(cv::Mat& image, Eigen::Matrix4d& pose){
   frame->SetPose(Twc);
   pose = Twc;
 
-  if(_configs.pose_refinement){
+  if(_config.pose_refinement){
     // pose estimation
-    MapOfPoses poses; 
+    MapOfPoses poses;
     MapOfPoints3d points;
     MapOfLine3d lines;
     MapOfVelocity velocities;
@@ -413,7 +412,7 @@ bool MapUser::Relocalization(cv::Mat& image, Eigen::Matrix4d& pose){
       int keypoint_idx = i;
       MappointPtr mpt = matched_mappoints[i];
       if(mpt == nullptr || !mpt->IsValid()) continue;
-      Eigen::Vector3d keypoint; 
+      Eigen::Vector3d keypoint;
       if(!frame->GetKeypointPosition(keypoint_idx, keypoint)) continue;
 
       int mpt_id = mpt->GetId();
@@ -423,7 +422,7 @@ bool MapUser::Relocalization(cv::Mat& image, Eigen::Matrix4d& pose){
       points.insert(std::pair<int, Position3d>(mpt_id, point));
 
       if(keypoint(2) > 0){
-        StereoPointConstraintPtr stereo_constraint = std::shared_ptr<StereoPointConstraint>(new StereoPointConstraint()); 
+        StereoPointConstraintPtr stereo_constraint = std::shared_ptr<StereoPointConstraint>(new StereoPointConstraint());
         stereo_constraint->id_pose = frame_id;
         stereo_constraint->id_point = mpt_id;
         stereo_constraint->id_camera = 0;
@@ -433,7 +432,7 @@ bool MapUser::Relocalization(cv::Mat& image, Eigen::Matrix4d& pose){
         stereo_point_constraints.push_back(stereo_constraint);
         stereo_indexes.push_back(keypoint_idx);
       }else{
-        MonoPointConstraintPtr mono_constraint = std::shared_ptr<MonoPointConstraint>(new MonoPointConstraint()); 
+        MonoPointConstraintPtr mono_constraint = std::shared_ptr<MonoPointConstraint>(new MonoPointConstraint());
         mono_constraint->id_pose = frame_id;
         mono_constraint->id_point = mpt_id;
         mono_constraint->id_camera = 0;
@@ -445,11 +444,11 @@ bool MapUser::Relocalization(cv::Mat& image, Eigen::Matrix4d& pose){
       }
     }
 
-    if(points.size() < _configs.min_inlier) return false;
+    if(points.size() < _config.min_inlier) return false;
 
-    num_inliers = FrameOptimization(poses, points, lines, velocities, biases, camera_list, 
+    num_inliers = FrameOptimization(poses, points, lines, velocities, biases, camera_list,
       mono_point_constraints, stereo_point_constraints, mono_line_constraints, stereo_line_constraints,
-      imu_constraints, Rwg, _configs.pose_estimation_config);
+      imu_constraints, Rwg, _config.pose_estimation_config);
 
     pose = Eigen::Matrix4d::Identity();
     pose.block<3, 3>(0, 0) = poses.begin()->second.R;
@@ -457,21 +456,23 @@ bool MapUser::Relocalization(cv::Mat& image, Eigen::Matrix4d& pose){
   }
 
 
-  if(num_inliers < _configs.min_inlier) return false;
+  if(num_inliers < _config.min_inlier) return false;
 
   // visualization
-  if(_configs.ros_publisher_config.reloc){
+  if(_config.ros_publisher_config.reloc){
     FramePoseMessagePtr frame_pose_message = std::shared_ptr<FramePoseMessage>(new FramePoseMessage);
-    frame_pose_message->time = now.toSec();
+    frame_pose_message->time = now.seconds();
+    //frame_pose_message->time = now.toSec();
     frame_pose_message->pose = pose;
 
-    _reloc_message->times.push_back(now.toSec());
+    _reloc_message->times.push_back(now.seconds());
+    //_reloc_message->times.push_back(now.toSec());
     _reloc_message->poses.push_back(pose);
     _reloc_message->mappoints.clear();
     _reloc_message->mappoints.reserve(num_inliers);
     for(int i = 0; i < matched_mappoints.size(); i++){
       if(cv_inliers[i] >= 0){
-        _reloc_message->mappoints.push_back(matched_mappoints[i]->GetPosition()); 
+        _reloc_message->mappoints.push_back(matched_mappoints[i]->GetPosition());
       }
     }
 

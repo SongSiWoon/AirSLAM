@@ -1,10 +1,10 @@
 <?xml version="1.0"?>
-<package>
+<package format="3">
   <name>air_slam</name>
   <version>0.0.0</version>
   <description>The AirSLAM package</description>
 
-  <!-- One maintainer tag required, multiple allowed, one person per tag --> 
+  <!-- One maintainer tag required, multiple allowed, one person per tag -->
   <!-- Example:  -->
   <maintainer email="kuan.xu@ntu.edu.sg">xukuan</maintainer>
 
@@ -38,31 +38,46 @@
   <!--   <run_depend>message_runtime</run_depend> -->
   <!-- Use test_depend for packages you need only for testing: -->
   <!--   <test_depend>gtest</test_depend> -->
-  <buildtool_depend>catkin</buildtool_depend>
 
+  <!-- buildtool_depend>catkin</buildtool_depend-->
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <build_depend>rosidl_runtime_c</build_depend>
+  <build_depend>rclcpp</build_depend>
   <build_depend>cv_bridge</build_depend>
   <build_depend>geometry_msgs</build_depend>
   <build_depend>image_transport</build_depend>
   <build_depend>nav_msgs</build_depend>
-  <build_depend>roscpp</build_depend>
-  <build_depend>rospy</build_depend>
+  <!-- uild_depend>roscpp</build_depend-->
+  <!--build_depend>rospy</build_depend-->
   <build_depend>std_msgs</build_depend>
   <build_depend>sensor_msgs</build_depend>
+  <build_depend>rcl_interfaces</build_depend>
+
+
   <!-- <build_depend>eigen_conversions</build_depend> -->
-  <run_depend>cv_bridge</run_depend>
+  <!--run_depend>cv_bridge</run_depend>
   <run_depend>geometry_msgs</run_depend>
   <run_depend>image_transport</run_depend>
   <run_depend>nav_msgs</run_depend>
   <run_depend>roscpp</run_depend>
   <run_depend>rospy</run_depend>
   <run_depend>std_msgs</run_depend>
-  <run_depend>sensor_msgs</run_depend>
+  <run_depend>sensor_msgs</run_depend-->
+
+  <exec_depend>rclcpp</exec_depend>
+  <exec_depend>cv_bridge</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>image_transport</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
   <!-- <run_depend>eigen_conversions</run_depend> -->
 
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>
     <!-- Other tools can request additional information be placed here -->
-
+    <build_type>ament_cmake</build_type>
   </export>
 </package>

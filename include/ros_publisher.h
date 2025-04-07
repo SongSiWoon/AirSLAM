@@ -7,15 +7,17 @@
 #include <opencv2/opencv.hpp>
 #include <Eigen/Core>
 
-#include <ros/ros.h>
+#include "rclcpp/rclcpp.hpp"
+//#include <ros/ros.h>
 #include <cv_bridge/cv_bridge.h>
-#include <geometry_msgs/PoseStamped.h>
-#include <geometry_msgs/PoseArray.h>
-#include <nav_msgs/Path.h>
-#include <nav_msgs/Odometry.h>
-#include <sensor_msgs/PointCloud.h>
-#include <visualization_msgs/Marker.h>
-#include <tf/transform_broadcaster.h>
+#include "geometry_msgs/msg/pose_stamped.hpp"
+#include "geometry_msgs/msg/pose_array.hpp"
+#include "nav_msgs/msg/path.hpp"
+#include "nav_msgs/msg/odometry.hpp"
+#include "sensor_msgs/msg/point_cloud.hpp"
+#include "visualization_msgs/msg/marker.hpp"
+#include "tf2_ros/transform_broadcaster.h"
+//#include <tf/transform_broadcaster.h>
 
 #include "utils.h"
 #include "read_configs.h"
@@ -64,7 +66,7 @@ typedef std::shared_ptr<const KeyframeMessage> KeyframeMessageConstPtr;
 
 struct MapMessage{
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-  
+
   double time;
   bool reset;
   std::vector<int> ids;
@@ -75,7 +77,7 @@ typedef std::shared_ptr<const MapMessage> MapMessageConstPtr;
 
 struct MapLineMessage{
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-  
+
   double time;
   bool reset;
   std::vector<int> ids;
@@ -97,9 +99,9 @@ typedef std::shared_ptr<RelocMessage> RelocMessagePtr;
 typedef std::shared_ptr<const RelocMessage> RelocMessageConstPtr;
 
 
-class RosPublisher{
+class RosPublisher : public rclcpp::Node {
 public:
-  RosPublisher(const RosPublisherConfig& ros_publisher_config, ros::NodeHandle nh);
+  RosPublisher(const RosPublisherConfig& ros_publisher_config);
 
   void PublishFeature(FeatureMessgaePtr feature_message);
   void PublishFramePose(FramePoseMessagePtr frame_pose_message);
@@ -115,39 +117,39 @@ private:
   RosPublisherConfig _config;
 
   // for publishing features
-  ros::Publisher _ros_feature_pub;
+  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr _ros_feature_pub;
   ThreadPublisher<FeatureMessgae> _feature_publisher;
 
   // for publishing frame
-  ros::Publisher _ros_frame_pose_pub;
-  ros::Publisher _pub_latest_odometry;
+  rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr _ros_frame_pose_pub;
+  rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr _pub_latest_odometry;
   ThreadPublisher<FramePoseMessage> _frame_pose_publisher;
 
   // for publishing keyframes
-  ros::Publisher _ros_keyframe_pub;
-  ros::Publisher _ros_path_pub;
+  rclcpp::Publisher<geometry_msgs::msg::PoseArray>::SharedPtr _ros_keyframe_pub;
+  rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr _ros_path_pub;
   std::map<int, int> _keyframe_id_to_index;
-  geometry_msgs::PoseArray  _ros_keyframe_array;
-  nav_msgs::Path _ros_path;
+  geometry_msgs::msg::PoseArray  _ros_keyframe_array;
+  nav_msgs::msg::Path _ros_path;
   ThreadPublisher<KeyframeMessage> _keyframe_publisher;
 
   // for publishing mappoints
-  ros::Publisher _ros_map_pub;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud>::SharedPtr _ros_map_pub;
   std::unordered_map<int, int> _mappoint_id_to_index;
-  sensor_msgs::PointCloud _ros_mappoints;
+  sensor_msgs::msg::PointCloud _ros_mappoints;
   ThreadPublisher<MapMessage> _map_publisher;
 
   // for publishing maplines
-  ros::Publisher _ros_mapline_pub;
+  rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr _ros_mapline_pub;
   std::unordered_map<int, int> _mapline_id_to_index;
-  visualization_msgs::Marker _ros_maplines;
+  visualization_msgs::msg::Marker _ros_maplines;
   ThreadPublisher<MapLineMessage> _mapline_publisher;
 
   // for publishing relocalization results
-  ros::Publisher _ros_reloc_traj_pub;
-  ros::Publisher _ros_reloc_pose_pub;
-  ros::Publisher _ros_reloc_mpts_pub;
-  visualization_msgs::Marker _ros_reloc_traj;
+  rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr _ros_reloc_traj_pub;
+  rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr _ros_reloc_pose_pub;
+  rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr _ros_reloc_mpts_pub;
+  visualization_msgs::msg::Marker _ros_reloc_traj;
   ThreadPublisher<RelocMessage> _reloc_traj_publisher;
   ThreadPublisher<RelocMessage> _reloc_pose_publisher;
   ThreadPublisher<RelocMessage> _reloc_mpts_publisher;

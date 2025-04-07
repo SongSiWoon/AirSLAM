@@ -27,11 +27,10 @@ struct RelocalizationGroupCandidate{
   double group_score;
 };
 
-class MapUser{
+class MapUser : public rclcpp::Node {
 public:
   MapUser();
-  MapUser(RelocalizationConfigs& configs, ros::NodeHandle nh);
-
+  MapUser(RelocalizationConfigs& configs, std::shared_ptr<rclcpp::Node> node);
   void LoadMap(const std::string& map_root);
   void LoadVocabulary(const std::string voc_path);
   bool Relocalization(cv::Mat& image, Eigen::Matrix4d& pose);
@@ -48,7 +47,7 @@ public:
 
 private:
   // class
-  RelocalizationConfigs _configs;
+  RelocalizationConfigs _config;
   FeatureDetectorPtr _feature_detector;
   PointMatcherPtr _point_matcher;
   MapPtr _map;

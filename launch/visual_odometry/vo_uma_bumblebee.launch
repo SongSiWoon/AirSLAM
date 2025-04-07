@@ -16,5 +16,5 @@
   <arg name="visualization" default="true" />
   <group if="$(arg visualization)">
     <node name="rviz" pkg="rviz" type="rviz" args="-d $(find air_slam)/rviz/vo.rviz" output="screen" />
-  </group>      
-</launch>		
+  </group>
+</launch>

@@ -1,9 +1,9 @@
 #include "map_builder.h"
 
 #include <assert.h>
-#include <iostream> 
-#include <Eigen/Core> 
-#include <Eigen/Geometry> 
+#include <iostream>
+#include <Eigen/Core>
+#include <Eigen/Geometry>
 #include <opencv2/core/eigen.hpp>
 #include <boost/serialization/serialization.hpp>
 
@@ -24,11 +24,13 @@
 MapRefiner::MapRefiner(){
 }
 
-MapRefiner::MapRefiner(MapRefinementConfigs& configs, ros::NodeHandle nh): odometry_length(0), 
-    _configs(configs), _stop(false), _stopped(false), _map_ready(false){
+//MapRefiner::MapRefiner(MapRefinementConfigs& configs, ros::NodeHandle nh): odometry_length(0),
+MapRefiner::MapRefiner(MapRefinementConfigs& configs, const rclcpp::Node::SharedPtr& node) : odometry_length(0),
+  _configs(configs), _stop(false), _stopped(false), _map_ready(false){
   _point_matcher = std::shared_ptr<PointMatcher>(new PointMatcher(configs.point_matcher_config));
-  _ros_publisher = std::shared_ptr<RosPublisher>(new RosPublisher(configs.ros_publisher_config, nh));
-  _visualization_thread = std::thread(boost::bind(&MapRefiner::PubMap, this));
+  _ros_publisher = std::shared_ptr<RosPublisher>(new RosPublisher(configs.ros_publisher_config));
+  //_visualization_thread = std::thread(boost::bind(&MapRefiner::PubMap, this));
+  _visualization_thread = std::thread(&MapRefiner::PubMap, this);
 }
 
 void MapRefiner::LoadMap(const std::string& map_root){
@@ -51,7 +53,7 @@ void MapRefiner::LoadMap(const std::string& map_root){
   _map->CheckMap();
   _map_mutex.unlock();
 }
-  
+
 void MapRefiner::LoadVocabulary(const std::string voc_path){
   _database = std::shared_ptr<Database>(new Database(voc_path));
 }
@@ -80,7 +82,7 @@ int MapRefiner::LoopDetection(){
       num_frame++;
     }
 
-    DBoW2::WordIdToFeatures word_features; 
+    DBoW2::WordIdToFeatures word_features;
     DBoW2::BowVector bow_vector;
     std::vector<DBoW2::WordId> word_of_features;
     _database->FrameToBow(frame, word_features, bow_vector, word_of_features);
@@ -132,7 +134,7 @@ void MapRefiner::LoopDetection(FramePtr frame, DBoW2::WordIdToFeatures& word_fea
   // grouping
   std::map<FramePtr, LoopGroupCandidate> group_candidates;
   FramePtr best_deputy;
-  double best_group_score = -1; 
+  double best_group_score = -1;
   std::map<FramePtr, LoopGroupCandidate>::iterator loop_group_iter;
   std::map<FramePtr, double>::iterator fs_it = frame_scores.begin();
   for(; fs_it != frame_scores.end(); fs_it++){
@@ -182,7 +184,7 @@ void MapRefiner::LoopDetection(FramePtr frame, DBoW2::WordIdToFeatures& word_fea
     FramePtr fsw = loop_group_iter->first;
     loop_position = fsw->GetPose().block<3, 1>(0, 3);
     double distance =  (current_position - loop_position).norm();
-    if(distance > loop_distance_thr){  
+    if(distance > loop_distance_thr){
       loop_group_iter = group_candidates.erase(loop_group_iter);
     }else{
       loop_group_iter++;
@@ -196,7 +198,7 @@ void MapRefiner::LoopDetection(FramePtr frame, DBoW2::WordIdToFeatures& word_fea
     double group_score_thr = best_group_score * 0.5;
     loop_group_iter = group_candidates.begin();
     for(; loop_group_iter != group_candidates.end();){
-      if(loop_group_iter->second.group_score < group_score_thr){  
+      if(loop_group_iter->second.group_score < group_score_thr){
         loop_group_iter = group_candidates.erase(loop_group_iter);
       }else{
         loop_group_iter++;
@@ -211,7 +213,7 @@ void MapRefiner::LoopDetection(FramePtr frame, DBoW2::WordIdToFeatures& word_fea
   });
 
   // feature matching
-  const int GoodCandidateNum = group_vector.size() <= 5 ? group_vector.size() : 5; 
+  const int GoodCandidateNum = group_vector.size() <= 5 ? group_vector.size() : 5;
   std::vector<cv::DMatch> best_matches;
   FramePtr best_candidate;
   const Eigen::Matrix<float, 259, Eigen::Dynamic>& query_features = frame->GetAllFeatures();
@@ -234,7 +236,7 @@ void MapRefiner::LoopDetection(FramePtr frame, DBoW2::WordIdToFeatures& word_fea
   }
 }
 
-void MapRefiner::RelativatePoseEstimation(FramePtr frame, DBoW2::WordIdToFeatures& word_features, 
+void MapRefiner::RelativatePoseEstimation(FramePtr frame, DBoW2::WordIdToFeatures& word_features,
     FramePtr loop_frame, std::vector<cv::DMatch>& loop_matches, std::map<FramePtr, LoopGroupCandidate>& group_candidates){
   int frame_id = frame->GetFrameId();
 
@@ -267,7 +269,7 @@ void MapRefiner::RelativatePoseEstimation(FramePtr frame, DBoW2::WordIdToFeature
     int keypoint_idx = i;
     MappointPtr mpt = matched_mappoints[i];
     if(mpt == nullptr || !mpt->IsValid()) continue;
-    Eigen::Vector3d keypoint; 
+    Eigen::Vector3d keypoint;
     if(!frame->GetKeypointPosition(keypoint_idx, keypoint)) continue;
 
     int mpt_id = mpt->GetId();
@@ -277,7 +279,7 @@ void MapRefiner::RelativatePoseEstimation(FramePtr frame, DBoW2::WordIdToFeature
     points.insert(std::pair<int, Position3d>(mpt_id, point));
 
     if(keypoint(2) > 0){
-      StereoPointConstraintPtr stereo_constraint = std::shared_ptr<StereoPointConstraint>(new StereoPointConstraint()); 
+      StereoPointConstraintPtr stereo_constraint = std::shared_ptr<StereoPointConstraint>(new StereoPointConstraint());
       stereo_constraint->id_pose = frame_id;
       stereo_constraint->id_point = mpt_id;
       stereo_constraint->id_camera = 0;
@@ -287,7 +289,7 @@ void MapRefiner::RelativatePoseEstimation(FramePtr frame, DBoW2::WordIdToFeature
       stereo_point_constraints.push_back(stereo_constraint);
       stereo_indexes.push_back(keypoint_idx);
     }else{
-      MonoPointConstraintPtr mono_constraint = std::shared_ptr<MonoPointConstraint>(new MonoPointConstraint()); 
+      MonoPointConstraintPtr mono_constraint = std::shared_ptr<MonoPointConstraint>(new MonoPointConstraint());
       mono_constraint->id_pose = frame_id;
       mono_constraint->id_point = mpt_id;
       mono_constraint->id_camera = 0;
@@ -301,7 +303,7 @@ void MapRefiner::RelativatePoseEstimation(FramePtr frame, DBoW2::WordIdToFeature
   if(points.size() < 50) return;
 
 
-  int num_inliers = FrameOptimization(poses, points, lines, velocities, biases, camera_list, 
+  int num_inliers = FrameOptimization(poses, points, lines, velocities, biases, camera_list,
     mono_point_constraints, stereo_point_constraints, mono_line_constraints, stereo_line_constraints,
     imu_constraints, Rwg, _configs.map_optimization_config);
 
@@ -373,7 +375,7 @@ void MapRefiner::RelativatePoseEstimation(FramePtr frame, DBoW2::WordIdToFeature
 
   int new_found_matches = 0;
   std::function<MappointPtr(const int&, const DBoW2::WordId&)> find_more_matches_in_group = [&](const int& idx, const DBoW2::WordId& word_id){
-    
+
     Eigen::Matrix<float, 256, 1> query_descriptor, candidate_descriptor;
     if(!frame->GetDescriptor(idx, query_descriptor)){
       return std::shared_ptr<Mappoint>(nullptr);
@@ -755,7 +757,7 @@ void MapRefiner::MergeMaplines(){
   }
 
   // 3. find initial mapline groups
-  std::function<bool(const MaplinePtr&, const MaplinePtr&, double)> check_is_same_line = 
+  std::function<bool(const MaplinePtr&, const MaplinePtr&, double)> check_is_same_line =
       [&](const MaplinePtr& mpl1, const MaplinePtr& mpl2, double thr){
     return true;
 
@@ -986,7 +988,7 @@ void MapRefiner::BuildJunctionDatabase(){
   for(const auto& kv : _map->_keyframes){
     FramePtr frame = kv.second;
     Eigen::Matrix<float, 259, Eigen::Dynamic> junctions = frame->GetJunctions();
-    DBoW2::WordIdToFeatures word_features; 
+    DBoW2::WordIdToFeatures word_features;
     DBoW2::BowVector bow_vector;
     std::vector<DBoW2::WordId> word_of_features;
     _junction_database->FrameToBow(junctions, word_features, bow_vector, word_of_features);
@@ -1028,15 +1030,16 @@ void MapRefiner::SaveFinalMap(std::string map_root){
 }
 
 void MapRefiner::PubMap(){
-  ros::Rate loop_rate(5); 
-  while(ros::ok() && !_stop){
+  rclcpp::Rate loop_rate(5);
+  while(rclcpp::ok() && !_stop){
     _map_mutex.lock();
     if(_map_ready){
-      _map->Publish(ros::Time::now().toSec(), true);
+      //_map->Publish(ros::Time::now().toSec(), true);
+      _map->Publish(_node->get_clock()->now().seconds(), true);
     }
     _map_mutex.unlock();
-    ros::spinOnce(); 
-    loop_rate.sleep(); 
+    rclcpp::spin_some(_node);
+    loop_rate.sleep();
   }
   std::cout << "PubMap is over" << std::endl;
   _stopped = true;

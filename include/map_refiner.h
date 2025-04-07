@@ -40,7 +40,8 @@ struct LoopFramePair{
 class MapRefiner{
 public:
   MapRefiner();
-  MapRefiner(MapRefinementConfigs& configs, ros::NodeHandle nh);
+  //MapRefiner(MapRefinementConfigs& configs, ros::NodeHandle nh);
+  MapRefiner(MapRefinementConfigs& configs, const rclcpp::Node::SharedPtr& node);
 
   void LoadMap(const std::string& map_root);
 
@@ -51,7 +52,7 @@ public:
 
   int LoopDetection();
   void LoopDetection(FramePtr frame, DBoW2::WordIdToFeatures& word_features, DBoW2::BowVector& bow_vector);
-  void RelativatePoseEstimation(FramePtr frame, DBoW2::WordIdToFeatures& word_features, 
+  void RelativatePoseEstimation(FramePtr frame, DBoW2::WordIdToFeatures& word_features,
       FramePtr loop_frame, std::vector<cv::DMatch>& loop_matches, std::map<FramePtr, LoopGroupCandidate>& group_candidates);
 
   void PoseGraphRefinement();
@@ -100,6 +101,7 @@ private:
   bool _stopped;
   bool _map_ready;
   std::thread _visualization_thread;
+  rclcpp::Node::SharedPtr _node;
 };
 
 #endif  // MAP_REFINER_H_

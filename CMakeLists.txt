@@ -12,17 +12,32 @@ add_subdirectory(${PROJECT_SOURCE_DIR}/3rdparty/DBoW2)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
-find_package(catkin REQUIRED COMPONENTS
-  cv_bridge
-  geometry_msgs
-  image_transport
-  nav_msgs
-  roscpp
-  rospy
-  std_msgs
-  sensor_msgs
-  tf
-)
+#find_package(catkin REQUIRED COMPONENTS
+#  cv_bridge
+#  geometry_msgs
+#  image_transport
+#  nav_msgs
+#  roscpp
+#  rospy
+#  std_msgs
+#  sensor_msgs
+#  tf
+#)
+
+find_package(ament_cmake REQUIRED)
+find_package(rcl_interfaces REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(rmw REQUIRED)
+find_package(rosidl_runtime_c REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
+find_package(cv_bridge REQUIRED)
+find_package(image_transport REQUIRED)
+find_package(tf2_ros REQUIRED)
+
 
 find_package(OpenCV 4.2 REQUIRED)
 find_package(Eigen3 REQUIRED)
@@ -33,11 +48,11 @@ find_package(G2O REQUIRED)
 find_package(Gflags REQUIRED)
 find_package(Glog REQUIRED)
 
-catkin_package(
- INCLUDE_DIRS include
- LIBRARIES ${PROJECT_NAME}_lib
- CATKIN_DEPENDS geometry_msgs image_transport nav_msgs roscpp rospy std_msgs
-)
+#catkin_package(
+# INCLUDE_DIRS include
+# LIBRARIES ${PROJECT_NAME}_lib
+# CATKIN_DEPENDS geometry_msgs image_transport nav_msgs roscpp rospy std_msgs
+#)
 
 include_directories(
   ${PROJECT_SOURCE_DIR}
@@ -47,10 +62,14 @@ include_directories(
   ${CUDA_INCLUDE_DIRS}
   ${YAML_CPP_INCLUDE_DIR}
   ${Boost_INCLUDE_DIRS}
-  ${catkin_INCLUDE_DIRS}
+#  ${catkin_INCLUDE_DIRS}
   ${G2O_INCLUDE_DIR}
-  ${GFLAGS_INCLUDE_DIRS} 
+  ${GFLAGS_INCLUDE_DIRS}
   ${GLOG_INCLUDE_DIRS}
+  ${rclcpp_INCLUDE_DIRS}
+  ${rosidl_runtime_c_INCLUDE_DIRS}
+  /opt/ros/humble/include/rmw
+  /opt/ros/humble/include
 )
 
 add_library(${PROJECT_NAME}_lib SHARED
@@ -87,6 +106,20 @@ add_library(${PROJECT_NAME}_lib SHARED
   src/debug.cc
 )
 
+ament_target_dependencies(${PROJECT_NAME}_lib
+  rclcpp
+  rmw
+  sensor_msgs
+  std_msgs
+  nav_msgs
+  geometry_msgs
+  visualization_msgs
+  cv_bridge
+  image_transport
+  rcl_interfaces
+  tf2_ros
+)
+
 target_link_libraries(${PROJECT_NAME}_lib
   nvinfer
   nvonnxparser
@@ -94,7 +127,7 @@ target_link_libraries(${PROJECT_NAME}_lib
   ${CUDA_LIBRARIES}
   ${Boost_LIBRARIES}
   ${G2O_LIBRARIES}
-  ${GFLAGS_LIBRARIES} 
+  ${GFLAGS_LIBRARIES}
   ${GLOG_LIBRARIES}
   yaml-cpp
   tensorrtbuffer
@@ -113,3 +146,36 @@ target_link_libraries(relocalization ${PROJECT_NAME}_lib ${catkin_LIBRARIES})
 
 add_executable(test_feature demo/test_feature.cpp)
 target_link_libraries(test_feature ${PROJECT_NAME}_lib ${catkin_LIBRARIES})
+
+install(TARGETS
+  ${PROJECT_NAME}_lib
+  visual_odometry
+  map_refinement
+  relocalization
+  test_feature
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+install(DIRECTORY include/
+  DESTINATION include/
+)
+
+ament_export_include_directories(include)
+ament_export_libraries(${PROJECT_NAME}_lib)
+ament_export_dependencies(
+  rclcpp
+  rmw
+  sensor_msgs
+  std_msgs
+  nav_msgs
+  geometry_msgs
+  cv_bridge
+  image_transport
+)
+
+install(
+  DIRECTORY launch
+  DESTINATION share/${PROJECT_NAME}
+)
+
+ament_package()

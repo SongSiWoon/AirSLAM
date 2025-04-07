@@ -63,7 +63,8 @@ typedef std::shared_ptr<TrackingData> TrackingDataPtr;
 
 class MapBuilder{
 public:
-  MapBuilder(VisualOdometryConfigs& configs, ros::NodeHandle nh);
+  //MapBuilder(VisualOdometryConfigs& configs, ros::NodeHandle nh);
+  MapBuilder(VisualOdometryConfigs& configs, const rclcpp::Node::SharedPtr& node);
   bool UseIMU();
   void AddInput(InputDataPtr data);
   void ExtractFeatureThread();
@@ -71,7 +72,7 @@ public:
 
   int TrackFrame(FramePtr ref_frame, FramePtr current_frame, std::vector<cv::DMatch>& matches, Preinteration& _preinteration);
 
-  int FramePoseOptimization(FramePtr frame0, FramePtr frame, std::vector<MappointPtr>& mappoints, std::vector<int>& inliers, 
+  int FramePoseOptimization(FramePtr frame0, FramePtr frame, std::vector<MappointPtr>& mappoints, std::vector<int>& inliers,
       Preinteration& preinteration);
   int AddKeyframeCheck(FramePtr ref_keyframe, FramePtr current_frame, const std::vector<cv::DMatch>&);
   void InsertKeyframe(FramePtr frame);
@@ -99,9 +100,9 @@ private:
   std::mutex _stop_mutex;
   bool _shutdown;
   bool _feature_thread_stop;
-  bool _tracking_trhead_stop;
+  bool _tracking_thread_stop;
 
-  // tmp 
+  // tmp
   bool _init;
   bool _insert_next_keyframe;
   int _track_id;

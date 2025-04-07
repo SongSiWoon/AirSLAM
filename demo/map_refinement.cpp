@@ -2,7 +2,8 @@
 #include <chrono>
 #include <opencv2/opencv.hpp>
 #include <Eigen/Core>
-#include <ros/ros.h>
+#include <rclcpp/rclcpp.hpp>
+//#include <ros/ros.h>
 
 #include "utils.h"
 #include "read_configs.h"
@@ -10,25 +11,32 @@
 #include "map_refiner.h"
 
 int main(int argc, char **argv) {
-  ros::init(argc, argv, "air_slam");
-  ros::NodeHandle nh;
+  //ros::init(argc, argv, "air_slam");
+  //ros::NodeHandle nh;
+  rclcpp::init(argc, argv);
+  auto node = std::make_shared<rclcpp::Node>("air_slam");
 
   int breakpoint;
-  ros::param::get("~breakpoint", breakpoint);
+  //ros::param::get("~breakpoint", breakpoint);
+  node->get_parameter("breakpoint", breakpoint);
 
   std::string config_path, model_dir;
-  ros::param::get("~config_path", config_path);
-  ros::param::get("~model_dir", model_dir);
+  //ros::param::get("~config_path", config_path);
+  //ros::param::get("~model_dir", model_dir);
+  node->get_parameter("config_path", config_path);
+  node->get_parameter("model_dir", model_dir);
   MapRefinementConfigs configs(config_path, model_dir);
-  MapRefiner map_refiner(configs, nh);
+  MapRefiner map_refiner(configs, node);
 
   std::string map_root;
-  ros::param::get("~map_root", map_root);
+  //ros::param::get("~map_root", map_root);
+  node->get_parameter("map_root", map_root);
   std::cout << "Loading map and vocabulary..." << std::endl;
   map_refiner.LoadMap(map_root);
 
   std::string voc_path;
-  ros::param::get("~voc_path", voc_path);
+  //ros::param::get("~voc_path", voc_path);
+  node->get_parameter("voc_path", voc_path);
   map_refiner.LoadVocabulary(voc_path);
   std::cout << "Done." << std::endl;
 
@@ -74,7 +82,7 @@ int main(int argc, char **argv) {
 
   exit(0);
   map_refiner.StopVisualization();
-  ros::shutdown();
+  rclcpp::shutdown();
 
   return 0;
 }
