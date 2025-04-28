@@ -11,14 +11,14 @@ Dataset::Dataset(const std::string& dataroot, const bool use_imu): _use_imu(use_
     std::cout << "dataroot : " << dataroot << " doesn't exist" << std::endl;
     exit(0);
   }
-  std::string imu_file = ConcatenateFolderAndFileName(dataroot, "mav0/imu0/data.csv");
+  std::string imu_file = ConcatenateFolderAndFileName(dataroot, "imu0/data.csv");
   if(use_imu && !FileExists(imu_file)){
     std::cout << "use_imu is set to true, however the imu file : " << imu_file << " doesn't exist" << std::endl;
     exit(0);
   }
 
-  std::string left_image_dir = ConcatenateFolderAndFileName(dataroot, "mav0/cam0/data");
-  std::string right_image_dir = ConcatenateFolderAndFileName(dataroot, "mav0/cam1/data");
+  std::string left_image_dir = ConcatenateFolderAndFileName(dataroot, "cam0/data");
+  std::string right_image_dir = ConcatenateFolderAndFileName(dataroot, "cam1/data");
   std::vector<std::string> image_names;
   GetFileNames(left_image_dir, image_names);
   if(image_names.size() < 1) return;
