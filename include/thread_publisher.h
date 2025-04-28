@@ -7,9 +7,10 @@
 #include <condition_variable>
 #include <vector>
 #include <queue>
-#include <boost/bind.hpp>
+#include <boost/bind/bind.hpp>
 #include <functional>
 
+using namespace boost::placeholders;
 template <class T>
 class ThreadPublisher{
 public:
