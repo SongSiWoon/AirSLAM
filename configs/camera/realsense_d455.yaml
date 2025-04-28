@@ -1,0 +1,37 @@
+%YAML:1.0
+
+image_height: 480
+image_width: 640
+use_imu: 0
+
+depth_lower_thr: 0.05  # 0.4에서 0.05로 낮춤 (작은 disparity 허용)
+depth_upper_thr: 10.0  # 유지
+max_y_diff: 6
+
+# Calibration
+distortion_type: 0  # 0 for undistorted inputs, 1 for radial-tangential: [k1, k2, p1, p2, k3], 2 for equidistant/fisheye
+
+cam0:
+  # 왼쪽 카메라 (infra1, rectified)
+  intrinsics: [390.629, 390.629, 321.278, 241.553]  # fx, fy, cx, cy from wtf.json "rectified.2"
+  distortion_coeffs: [0.0, 0.0, 0.0, 0.0, 0.0]         # camera_info.json (infra1)에서 왜곡 없음
+  T_type: 0           # Euroc 형식 (Tbc, 카메라-바디 변환)
+  T: 
+  - [1.0, 0.0, 0.0, 0.0]
+  - [0.0, 1.0, 0.0, 0.0]
+  - [0.0, 0.0, 1.0, 0.0]
+  - [0.0, 0.0, 0.0, 1.0]
+
+cam1:
+  # 오른쪽 카메라 (infra2, rectified)
+  intrinsics: [431.32, 431.32, 425.411, 241.714]   # fx, fy, cx, cy from wtf.json "rectified.3"
+  distortion_coeffs: [0.0, 0.0, 0.0, 0.0, 0.0]         # camera_info.json (infra2)에서 왜곡 없음
+  T_type: 0           
+  T: 
+  - [1.0, 0.0, 0.0, 0.09493]  # extrinsics.json에 따른 x축 이동 (m 단위)
+  - [0.0, 1.0, 0.0, 0.0]
+  - [0.0, 0.0, 1.0, 0.0]
+  - [0.0, 0.0, 0.0, 1.0]
+
+# 카메라 간 baseline
+bf: 94.9296 # baseline value in pixels (baseline * fx)
