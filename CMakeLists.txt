@@ -2,30 +2,16 @@ cmake_minimum_required(VERSION 3.5)
 project(air_slam)
 
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_BUILD_TYPE "release")
+set(CMAKE_BUILD_TYPE "Release")
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 add_definitions(-w)
 
+# Thirdparty
 add_subdirectory(${PROJECT_SOURCE_DIR}/3rdparty/tensorrtbuffer)
 add_subdirectory(${PROJECT_SOURCE_DIR}/3rdparty/DBoW2)
 
-## Find catkin macros and libraries
-## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
-## is used, also find other catkin packages
-#find_package(catkin REQUIRED COMPONENTS
-#  cv_bridge
-#  geometry_msgs
-#  image_transport
-#  nav_msgs
-#  roscpp
-#  rospy
-#  std_msgs
-#  sensor_msgs
-#  tf
-#)
-
+# ROS2
 find_package(ament_cmake REQUIRED)
-find_package(rcl_interfaces REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rmw REQUIRED)
 find_package(rosidl_runtime_c REQUIRED)
@@ -37,9 +23,10 @@ find_package(visualization_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(image_transport REQUIRED)
 find_package(tf2_ros REQUIRED)
+find_package(rcl_interfaces REQUIRED)
 
-
-find_package(OpenCV 4.2 REQUIRED)
+# External libraries
+find_package(OpenCV REQUIRED COMPONENTS core imgproc ximgproc)
 find_package(Eigen3 REQUIRED)
 find_package(CUDA REQUIRED)
 find_package(yaml-cpp REQUIRED)
@@ -48,12 +35,7 @@ find_package(G2O REQUIRED)
 find_package(Gflags REQUIRED)
 find_package(Glog REQUIRED)
 
-#catkin_package(
-# INCLUDE_DIRS include
-# LIBRARIES ${PROJECT_NAME}_lib
-# CATKIN_DEPENDS geometry_msgs image_transport nav_msgs roscpp rospy std_msgs
-#)
-
+# Include directories
 include_directories(
   ${PROJECT_SOURCE_DIR}
   ${PROJECT_SOURCE_DIR}/include
@@ -62,16 +44,12 @@ include_directories(
   ${CUDA_INCLUDE_DIRS}
   ${YAML_CPP_INCLUDE_DIR}
   ${Boost_INCLUDE_DIRS}
-#  ${catkin_INCLUDE_DIRS}
   ${G2O_INCLUDE_DIR}
   ${GFLAGS_INCLUDE_DIRS}
   ${GLOG_INCLUDE_DIRS}
-  ${rclcpp_INCLUDE_DIRS}
-  ${rosidl_runtime_c_INCLUDE_DIRS}
-  /opt/ros/humble/include/rmw
-  /opt/ros/humble/include
 )
 
+# Main Library
 add_library(${PROJECT_NAME}_lib SHARED
   src/g2o_optimization/vertex_line3d.cc
   src/g2o_optimization/vertex_vi_pose.cc
@@ -109,6 +87,7 @@ add_library(${PROJECT_NAME}_lib SHARED
 ament_target_dependencies(${PROJECT_NAME}_lib
   rclcpp
   rmw
+  rosidl_runtime_c
   sensor_msgs
   std_msgs
   nav_msgs
@@ -135,18 +114,20 @@ target_link_libraries(${PROJECT_NAME}_lib
   -lboost_serialization
 )
 
+# Executables
 add_executable(visual_odometry demo/visual_odometry.cpp)
-target_link_libraries(visual_odometry ${PROJECT_NAME}_lib ${catkin_LIBRARIES})
+target_link_libraries(visual_odometry ${PROJECT_NAME}_lib)
 
 add_executable(map_refinement demo/map_refinement.cpp)
-target_link_libraries(map_refinement ${PROJECT_NAME}_lib ${catkin_LIBRARIES})
+target_link_libraries(map_refinement ${PROJECT_NAME}_lib)
 
 add_executable(relocalization demo/relocalization.cpp)
-target_link_libraries(relocalization ${PROJECT_NAME}_lib ${catkin_LIBRARIES})
+target_link_libraries(relocalization ${PROJECT_NAME}_lib)
 
 add_executable(test_feature demo/test_feature.cpp)
-target_link_libraries(test_feature ${PROJECT_NAME}_lib ${catkin_LIBRARIES})
+target_link_libraries(test_feature ${PROJECT_NAME}_lib)
 
+# Install
 install(TARGETS
   ${PROJECT_NAME}_lib
   visual_odometry
@@ -160,22 +141,26 @@ install(DIRECTORY include/
   DESTINATION include/
 )
 
+install(DIRECTORY launch/
+  DESTINATION share/${PROJECT_NAME}
+)
+
+# Export
 ament_export_include_directories(include)
 ament_export_libraries(${PROJECT_NAME}_lib)
 ament_export_dependencies(
   rclcpp
   rmw
+  rosidl_runtime_c
   sensor_msgs
   std_msgs
   nav_msgs
   geometry_msgs
+  visualization_msgs
   cv_bridge
   image_transport
-)
-
-install(
-  DIRECTORY launch
-  DESTINATION share/${PROJECT_NAME}
+  rcl_interfaces
+  tf2_ros
 )
 
 ament_package()
