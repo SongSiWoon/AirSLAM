@@ -127,6 +127,8 @@ target_link_libraries(relocalization ${PROJECT_NAME}_lib)
 add_executable(test_feature demo/test_feature.cpp)
 target_link_libraries(test_feature ${PROJECT_NAME}_lib)
 
+add_executable(plnet_inference demo/plnet_inference.cpp)
+target_link_libraries(plnet_inference ${PROJECT_NAME}_lib ${catkin_LIBRARIES})
 # Install
 install(TARGETS
   ${PROJECT_NAME}_lib
