@@ -21,9 +21,16 @@ int main(int argc, char** argv) {
     std::string output_dir = argv[3];
 
     // 출력 디렉토리 생성
-    if (!fs::create_directories(output_dir)) {
-        std::cerr << "Failed to create output directory: " << output_dir << std::endl;
-        return -1;
+    if (!fs::exists(output_dir)) {
+        try {
+            fs::create_directories(output_dir);
+            std::cout << "Created output directory: " << output_dir << std::endl;
+        } catch (const fs::filesystem_error& e) {
+            std::cerr << "Failed to create output directory: " << e.what() << std::endl;
+            return -1;
+        }
+    } else {
+        std::cout << "Output directory already exists: " << output_dir << std::endl;
     }
 
     // PLNet 설정 로드
@@ -32,11 +39,11 @@ int main(int argc, char** argv) {
     plnet_config.plnet_s1_onnx = config_path + "/plnet_s1.onnx";
     plnet_config.plnet_s0_engine = config_path + "/plnet_s0.engine";
     plnet_config.plnet_s1_engine = config_path + "/plnet_s1.engine";
-    plnet_config.keypoint_threshold = 0.015;
-    plnet_config.line_threshold = 0.5;
-    plnet_config.line_length_threshold = 3.0;
+    plnet_config.keypoint_threshold = 0.004;
+    plnet_config.line_threshold = 0.75;
+    plnet_config.line_length_threshold = 50.0;
     plnet_config.remove_borders = 4;
-    plnet_config.max_keypoints = 1000;
+    plnet_config.max_keypoints = 400;
 
     // PLNet 초기화
     PLNet plnet(plnet_config);
@@ -157,6 +164,8 @@ int main(int argc, char** argv) {
     std::cout << "Average inference time: " << avg_time << " s" << std::endl;
     std::cout << "Average keypoints per image: " << avg_keypoints << std::endl;
     std::cout << "Average lines per image: " << avg_lines << std::endl;
+    std::cout << "Average inference speed: " << (1.0 / avg_time) << " Hz" << std::endl;
+
 
     return 0;
 } 
