@@ -30,10 +30,8 @@ MapBuilder::MapBuilder(VisualOdometryConfigs& configs, const rclcpp::Node::Share
   _ros_publisher = std::shared_ptr<RosPublisher>(new RosPublisher(configs.ros_publisher_config));
   _map = std::shared_ptr<Map>(new Map(_configs.backend_optimization_config, _camera, _ros_publisher));
 
-  //_feature_thread = std::thread(boost::bind(&MapBuilder::ExtractFeatureThread, this));
-  //_tracking_thread = std::thread(boost::bind(&MapBuilder::TrackingThread, this));
   _feature_thread = std::thread(&MapBuilder::ExtractFeatureThread, this);
-_tracking_thread = std::thread(&MapBuilder::TrackingThread, this);
+  _tracking_thread = std::thread(&MapBuilder::TrackingThread, this);
 }
 
 bool MapBuilder::UseIMU(){
@@ -56,104 +54,101 @@ void MapBuilder::AddInput(InputDataPtr data){
 }
 
 void MapBuilder::ExtractFeatureThread(){
-  while(!_shutdown || !_data_buffer.empty()){
-    if(_data_buffer.empty()){
-      usleep(2000);
-      continue;
-    }
+    while(!_shutdown || !_data_buffer.empty()){
+        if(_data_buffer.empty()){
+            usleep(2000);
+            continue;
+        }
 
-    InputDataPtr input_data;
-    _buffer_mutex.lock();
-    input_data = _data_buffer.front();
-    _data_buffer.pop();
-    _buffer_mutex.unlock();
+        InputDataPtr input_data;
+        _buffer_mutex.lock();
+        input_data = _data_buffer.front();
+        _data_buffer.pop();
+        _buffer_mutex.unlock();
 
-    int frame_id = input_data->index;
-    double timestamp = input_data->time;
-    cv::Mat image_left_rect = input_data->image_left.clone();
-    cv::Mat image_right_rect = input_data->image_right.clone();
+        int frame_id = input_data->index;
+        double timestamp = input_data->time;
+        cv::Mat image_left_rect = input_data->image_left.clone();
+        cv::Mat image_right_rect = input_data->image_right.clone();
 
+        FramePtr frame = std::shared_ptr<Frame>(new Frame(frame_id, false, _camera, timestamp));
 
-    // construct frame
-    FramePtr frame = std::shared_ptr<Frame>(new Frame(frame_id, false, _camera, timestamp));
-
-    Eigen::Matrix<float, 259, Eigen::Dynamic> left_features, right_features;
-    std::vector<Eigen::Vector4d> left_lines, right_lines;
-    std::vector<cv::DMatch> matches, stereo_matches;
-    int good_stereo_point = 0;
-    FrameType frame_type;
-    if(!_init || _insert_next_keyframe){
-      Eigen::Matrix<float, 259, Eigen::Dynamic> junctions;
-      _feature_detector->Detect(image_left_rect, image_right_rect, left_features, right_features, left_lines, right_lines, junctions);
-      _point_matcher->MatchingPoints(left_features, right_features, stereo_matches, false);
-      frame->AddLeftFeatures(left_features, left_lines);
-      good_stereo_point = frame->AddRightFeatures(right_features, right_lines, stereo_matches);
-      frame_type = _init ? FrameType::KeyFrame : FrameType::InitializationFrame;
-
+        Eigen::Matrix<float, 259, Eigen::Dynamic> left_features, right_features;
+        std::vector<Eigen::Vector4d> left_lines, right_lines;
+        std::vector<cv::DMatch> matches, stereo_matches;
+        int good_stereo_point = 0;
+        FrameType frame_type;
+        if(!_init || _insert_next_keyframe){
+            Eigen::Matrix<float, 259, Eigen::Dynamic> junctions;
+            _feature_detector->Detect(image_left_rect, image_right_rect, left_features, right_features, left_lines, right_lines, junctions);
+            _point_matcher->MatchingPoints(left_features, right_features, stereo_matches, false);
+            frame->AddLeftFeatures(left_features, left_lines);
+            good_stereo_point = frame->AddRightFeatures(right_features, right_lines, stereo_matches);
+            frame_type = _init ? FrameType::KeyFrame : FrameType::InitializationFrame;
+      frame->AddJunctions(junctions);
       frame->AddJunctions(junctions);
       // SaveLineDetectionResult(image_left_rect, left_lines, _configs.saving_dir, std::to_string(frame->GetFrameId()));
-    }else{
-      _feature_detector->Detect(image_left_rect, left_features);
-      frame->AddLeftFeatures(left_features, left_lines);
-      frame_type = FrameType::NormalFrame;
-    }
-
-    if(_init){
-      const Eigen::Matrix<float, 259, Eigen::Dynamic> features_last_keyframe = _last_keyframe_feature->GetAllFeatures();
-      _point_matcher->MatchingPoints(features_last_keyframe, left_features, matches, true);
-      int enough_match = AddKeyframeCheck(_last_keyframe_feature, frame, matches);
-
-      if(enough_match == 0){  // try to insert this frame as keyframe
-        if(frame_type == FrameType::NormalFrame){
-          _feature_detector->Detect(image_right_rect, right_features);
-          _point_matcher->MatchingPoints(left_features, right_features, stereo_matches, false);
-          good_stereo_point = frame->AddRightFeatures(right_features, right_lines, stereo_matches);
-        }
-
-        if(good_stereo_point < 10){
-          _insert_next_keyframe = true;
-          frame_type = FrameType::NormalFrame;
+            frame->AddJunctions(junctions);
+      // SaveLineDetectionResult(image_left_rect, left_lines, _configs.saving_dir, std::to_string(frame->GetFrameId()));
         }else{
-          frame_type = FrameType::KeyFrame;
-          _insert_next_keyframe = false;
+            _feature_detector->Detect(image_left_rect, left_features);
+            frame->AddLeftFeatures(left_features, left_lines);
+            frame_type = FrameType::NormalFrame;
         }
-      }else{
-        _insert_next_keyframe = (enough_match == 1) && (frame_type == FrameType::NormalFrame);
-      }
-    }else{
-      if(good_stereo_point < _configs.keyframe_config.min_init_stereo_feature){
-        std::cout << "good_stereo_point = " << good_stereo_point << std::endl;
-        std::cout << "Not enough stereo points to initialize!" << std::endl;
-        continue;
-      }else{
-        std::cout << "Initialization is done!" << std::endl;
-        _init = true;
-      }
+
+        if(_init){
+            const Eigen::Matrix<float, 259, Eigen::Dynamic> features_last_keyframe = _last_keyframe_feature->GetAllFeatures();
+            _point_matcher->MatchingPoints(features_last_keyframe, left_features, matches, true);
+            int enough_match = AddKeyframeCheck(_last_keyframe_feature, frame, matches);
+
+            if(enough_match == 0){
+                if(frame_type == FrameType::NormalFrame){
+                    _feature_detector->Detect(image_right_rect, right_features);
+                    _point_matcher->MatchingPoints(left_features, right_features, stereo_matches, false);
+                    good_stereo_point = frame->AddRightFeatures(right_features, right_lines, stereo_matches);
+                }
+
+                if(good_stereo_point < 10){
+                    _insert_next_keyframe = true;
+                    frame_type = FrameType::NormalFrame;
+                }else{
+                    frame_type = FrameType::KeyFrame;
+                    _insert_next_keyframe = false;
+                }
+            }else{
+                _insert_next_keyframe = (enough_match == 1) && (frame_type == FrameType::NormalFrame);
+            }
+        }else{
+            if(good_stereo_point < _configs.keyframe_config.min_init_stereo_feature){
+                continue;
+            }else{
+                _init = true;
+            }
+        }
+
+        TrackingDataPtr tracking_data = std::shared_ptr<TrackingData>(new TrackingData());
+        tracking_data->frame = frame;
+        tracking_data->frame_type = frame_type;
+        tracking_data->ref_keyframe = _last_keyframe_feature;
+        tracking_data->matches = matches;
+        tracking_data->input_data = input_data;
+
+        if(frame_type != FrameType::NormalFrame){
+            _last_keyframe_feature = frame;
+        }
+
+        while(_tracking_data_buffer.size() > 5){
+            usleep(2000);
+        }
+
+        _tracking_mutex.lock();
+        _tracking_data_buffer.push(tracking_data);
+        _tracking_mutex.unlock();
     }
 
-    TrackingDataPtr tracking_data = std::shared_ptr<TrackingData>(new TrackingData());
-    tracking_data->frame = frame;
-    tracking_data->frame_type = frame_type;
-    tracking_data->ref_keyframe = _last_keyframe_feature;
-    tracking_data->matches = matches;
-    tracking_data->input_data = input_data;
-
-    if(frame_type != FrameType::NormalFrame){
-      _last_keyframe_feature = frame;
-    }
-
-    while(_tracking_data_buffer.size() > 5){
-      usleep(2000);
-    }
-
-    _tracking_mutex.lock();
-    _tracking_data_buffer.push(tracking_data);
-    _tracking_mutex.unlock();
-  }
-
-  _stop_mutex.lock();
-  _feature_thread_stop = true;
-  _stop_mutex.unlock();
+    _stop_mutex.lock();
+    _feature_thread_stop = true;
+    _stop_mutex.unlock();
 }
 
 void MapBuilder::TrackingThread(){
@@ -559,18 +554,14 @@ void MapBuilder::SaveTrajectory(std::string file_path){
 }
 
 void MapBuilder::SaveMap(const std::string& map_root){
-  // _map->SaveMap(map_root);
-  std::string map_path = ConcatenateFolderAndFileName(map_root, "AirSLAM_mapv0.bin");
-  std::ofstream ofs(map_path, std::ios::binary);
-  std::cout << "map_path = " << map_path << std::endl;
-  boost::archive::binary_oarchive oa(ofs);
-
-  _map->CheckMap();
-
-  std::cout << "Map saveing..... " << std::endl;
-  oa << _map;
-  std::cout << "Map saveing done! " << std::endl;
-
+    std::string map_path = ConcatenateFolderAndFileName(map_root, "AirSLAM_mapv0.bin");
+    std::ofstream ofs(map_path, std::ios::binary);
+    boost::archive::binary_oarchive oa(ofs);
+    
+    _map->CheckMap();
+    std::cout << "Map saving..... " << std::endl;
+    oa << _map;
+    std::cout << "Map saving done! " << std::endl;
 }
 
 void MapBuilder::Stop(){

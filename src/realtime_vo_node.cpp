@@ -51,7 +51,7 @@ RealtimeVONode::RealtimeVONode() : Node("realtime_vo_node") {
     left_image_sub_.subscribe(this, "camera/left/image_raw");
     right_image_sub_.subscribe(this, "camera/right/image_raw");
 
-    // IMU 구독자 설정
+    // Setup IMU subscriber
     if (use_imu_) {
         imu_sub_ = this->create_subscription<sensor_msgs::msg::Imu>(
             "imu/data", 10,

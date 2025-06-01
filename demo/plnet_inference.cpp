@@ -7,10 +7,10 @@
 namespace fs = std::filesystem;
 
 int main(int argc, char** argv) {
-    // 사용법: ./plnet_inference <config_path> <input_dir> <output_dir>
-    // config_path: PLNet 모델 파일들이 있는 디렉토리
-    // input_dir: 처리할 이미지들이 있는 디렉토리
-    // output_dir: 결과를 저장할 디렉토리
+    // Usage: ./plnet_inference <config_path> <input_dir> <output_dir>
+    // config_path: Directory containing PLNet model files
+    // input_dir: Directory containing input images
+    // output_dir: Directory to save results
     if (argc != 4) {
         std::cout << "Usage: " << argv[0] << " <config_path> <input_dir> <output_dir>" << std::endl;
         return -1;
@@ -20,7 +20,7 @@ int main(int argc, char** argv) {
     std::string input_dir = argv[2];
     std::string output_dir = argv[3];
 
-    // 출력 디렉토리 생성
+    // Create output directory
     if (!fs::exists(output_dir)) {
         try {
             fs::create_directories(output_dir);
@@ -33,7 +33,7 @@ int main(int argc, char** argv) {
         std::cout << "Output directory already exists: " << output_dir << std::endl;
     }
 
-    // PLNet 설정 로드
+    // Load PLNet configuration
     PLNetConfig plnet_config;
     plnet_config.plnet_s0_onnx = config_path + "/plnet_s0.onnx";
     plnet_config.plnet_s1_onnx = config_path + "/plnet_s1.onnx";
@@ -45,14 +45,14 @@ int main(int argc, char** argv) {
     plnet_config.remove_borders = 4;
     plnet_config.max_keypoints = 400;
 
-    // PLNet 초기화
+    // Initialize PLNet
     PLNet plnet(plnet_config);
     if (!plnet.build()) {
         std::cerr << "Failed to build PLNet. Please check if ONNX files exist in: " << config_path << std::endl;
         return -1;
     }
 
-    // 이미지 파일 목록 가져오기
+    // Get list of image files
     std::vector<std::string> image_files;
     for (const auto& entry : fs::directory_iterator(input_dir)) {
         if (entry.path().extension() == ".png" || 
@@ -67,7 +67,7 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-    // 첫 50개 이미지만 처리
+    // Process first 50 images only
     if (image_files.size() > 50) {
         image_files.resize(50);
         std::cout << "Processing first 50 images out of " << image_files.size() << " total images" << std::endl;
@@ -78,14 +78,14 @@ int main(int argc, char** argv) {
     std::vector<int> line_counts;
 
     for (const auto& image_path : image_files) {
-        // 이미지 로드
+        // Load image
         cv::Mat image = cv::imread(image_path, cv::IMREAD_GRAYSCALE);
         if (image.empty()) {
             std::cerr << "Failed to load image: " << image_path << " (invalid format or file not found)" << std::endl;
             continue;
         }
 
-        // 결과 저장용 변수 초기화
+        // Initialize result variables
         Eigen::Matrix<float, 259, Eigen::Dynamic> features;
         std::vector<Eigen::Vector4d> lines;
         Eigen::Matrix<float, 259, Eigen::Dynamic> junctions;
@@ -93,13 +93,13 @@ int main(int argc, char** argv) {
         lines.clear();
         junctions.resize(0, 0);
 
-        // 추론 시간 측정 시작
+        // Start inference time measurement
         auto start = std::chrono::high_resolution_clock::now();
 
-        // 추론 실행
+        // Run inference
         bool success = plnet.infer(image, features, lines, junctions, true);
 
-        // 추론 시간 측정 종료
+        // End inference time measurement
         auto end = std::chrono::high_resolution_clock::now();
         double elapsed = std::chrono::duration<double>(end - start).count();
         inference_times.push_back(elapsed);
@@ -117,34 +117,34 @@ int main(int argc, char** argv) {
             continue;
         }
 
-        // 결과 시각화
+        // Visualize results
         cv::Mat vis = image.clone();
         cv::cvtColor(vis, vis, cv::COLOR_GRAY2BGR);
 
-        // 키포인트 그리기
+        // Draw keypoints
         for (int i = 0; i < features.cols(); ++i) {
             int x = static_cast<int>(features(1, i));
             int y = static_cast<int>(features(2, i));
             float score = features(0, i);
-            cv::Scalar color = cv::Scalar(0, 255 * score, 0);  // 점수에 따라 색상 변화
+            cv::Scalar color = cv::Scalar(0, 255 * score, 0);  // Color varies with score
             cv::circle(vis, cv::Point(x, y), 3, color, -1);
         }
 
-        // 선분 그리기
+        // Draw line segments
         for (const auto& line : lines) {
             cv::Point pt1(static_cast<int>(line[0]), static_cast<int>(line[1]));
             cv::Point pt2(static_cast<int>(line[2]), static_cast<int>(line[3]));
             cv::line(vis, pt1, pt2, cv::Scalar(0, 0, 255), 2);
         }
 
-        // 결과 저장
+        // Save results
         std::string output_path = output_dir + "/result_" + fs::path(image_path).filename().string();
         if (!cv::imwrite(output_path, vis)) {
             std::cerr << "Failed to save visualization: " << output_path << std::endl;
         }
     }
 
-    // 통계 계산
+    // Calculate statistics
     double avg_time = 0.0;
     double avg_keypoints = 0.0;
     double avg_lines = 0.0;
