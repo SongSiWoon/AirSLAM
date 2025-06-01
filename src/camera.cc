@@ -1,4 +1,5 @@
 #include <cmath>
+#include <cstddef>
 #include <yaml-cpp/yaml.h>
 #include <Eigen/Core>
 #include <opencv2/core/eigen.hpp>

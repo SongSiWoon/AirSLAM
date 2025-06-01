@@ -24,6 +24,7 @@ find_package(cv_bridge REQUIRED)
 find_package(image_transport REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(rcl_interfaces REQUIRED)
+find_package(message_filters REQUIRED)
 
 # External libraries
 find_package(OpenCV REQUIRED COMPONENTS core imgproc ximgproc)
@@ -82,6 +83,7 @@ add_library(${PROJECT_NAME}_lib SHARED
   src/map_user.cc
   src/timer.cc
   src/debug.cc
+  src/vo_core.cpp
 )
 
 ament_target_dependencies(${PROJECT_NAME}_lib
@@ -97,6 +99,7 @@ ament_target_dependencies(${PROJECT_NAME}_lib
   image_transport
   rcl_interfaces
   tf2_ros
+  message_filters
 )
 
 target_link_libraries(${PROJECT_NAME}_lib
@@ -118,6 +121,9 @@ target_link_libraries(${PROJECT_NAME}_lib
 add_executable(visual_odometry demo/visual_odometry.cpp)
 target_link_libraries(visual_odometry ${PROJECT_NAME}_lib)
 
+add_executable(realtime_vo_node src/realtime_vo_node.cpp)
+target_link_libraries(realtime_vo_node ${PROJECT_NAME}_lib)
+
 add_executable(map_refinement demo/map_refinement.cpp)
 target_link_libraries(map_refinement ${PROJECT_NAME}_lib)
 
@@ -129,10 +135,12 @@ target_link_libraries(test_feature ${PROJECT_NAME}_lib)
 
 add_executable(plnet_inference demo/plnet_inference.cpp)
 target_link_libraries(plnet_inference ${PROJECT_NAME}_lib ${catkin_LIBRARIES})
+
 # Install
 install(TARGETS
   ${PROJECT_NAME}_lib
   visual_odometry
+  realtime_vo_node
   map_refinement
   relocalization
   test_feature
@@ -163,6 +171,7 @@ ament_export_dependencies(
   image_transport
   rcl_interfaces
   tf2_ros
+  message_filters
 )
 
 ament_package()

@@ -6,6 +6,7 @@
 
 #include "utils.h"
 
+// Configuration for PLNet (Point and Line Network)
 struct PLNetConfig{
   std::string superpoint_onnx;
   std::string superpoint_engine;
@@ -33,7 +34,7 @@ struct PLNetConfig{
     remove_borders = plnet_node["remove_borders"].as<int>();
 
     line_threshold = plnet_node["line_threshold"].as<float>();
-    line_length_threshold = plnet_node["line_length_threshold"].as<float>();
+    line_length_threshold = plnet_node["line_length_threshold"].as<int>();
   }
 
   void SetModelPath(std::string model_dir){
@@ -47,10 +48,9 @@ struct PLNetConfig{
     plnet_s1_onnx = ConcatenateFolderAndFileName(model_dir, "plnet_s1.onnx");
     plnet_s1_engine = ConcatenateFolderAndFileName(model_dir, "plnet_s1.engine");
   }
-
 };
 
-
+// Configuration for SuperPoint feature detector
 struct SuperPointConfig {
   SuperPointConfig() {}
   void Load(const YAML::Node& superpoint_node){
@@ -58,18 +58,19 @@ struct SuperPointConfig {
     keypoint_threshold = superpoint_node["keypoint_threshold"].as<float>();
     remove_borders = superpoint_node["remove_borders"].as<int>();
     dla_core = superpoint_node["dla_core"].as<int>();
-    const YAML::Node superpoint_input_tensor_names_node = superpoint_node["input_tensor_names"];
-    size_t superpoint_num_input_tensor_names = superpoint_input_tensor_names_node.size();
-    for(size_t i = 0; i < superpoint_num_input_tensor_names; i++){
-      input_tensor_names.push_back(superpoint_input_tensor_names_node[i].as<std::string>());
+    
+    const YAML::Node& superpoint_input_tensor_names_node = superpoint_node["input_tensor_names"];
+    for(const auto& name : superpoint_input_tensor_names_node) {
+      input_tensor_names.push_back(name.as<std::string>());
     }
-    YAML::Node superpoint_output_tensor_names_node = superpoint_node["output_tensor_names"];
-    size_t superpoint_num_output_tensor_names = superpoint_output_tensor_names_node.size();
-    for(size_t i = 0; i < superpoint_num_output_tensor_names; i++){
-      output_tensor_names.push_back(superpoint_output_tensor_names_node[i].as<std::string>());
+    
+    const YAML::Node& superpoint_output_tensor_names_node = superpoint_node["output_tensor_names"];
+    for(const auto& name : superpoint_output_tensor_names_node) {
+      output_tensor_names.push_back(name.as<std::string>());
     }
+    
     onnx_file = superpoint_node["onnx_file"].as<std::string>();
-    engine_file= superpoint_node["engine_file"].as<std::string>();
+    engine_file = superpoint_node["engine_file"].as<std::string>();
   }
 
   int max_keypoints;
@@ -82,6 +83,7 @@ struct SuperPointConfig {
   std::string engine_file;
 };
 
+// Configuration for point matching
 struct PointMatcherConfig {
   PointMatcherConfig() {}
   void Load(const YAML::Node& point_matcher_node){
@@ -102,6 +104,7 @@ struct PointMatcherConfig {
   std::string engine_file;
 };
 
+// Configuration for line detection
 struct LineDetectorConfig{
   LineDetectorConfig() {}
   void Load(const YAML::Node& line_detector_node){
@@ -127,6 +130,7 @@ struct LineDetectorConfig{
   float ep_thr;
 };
 
+// Configuration for keyframe management
 struct KeyframeConfig {
   KeyframeConfig() {}
   void Load(const YAML::Node& keyframe_node){
@@ -146,13 +150,14 @@ struct KeyframeConfig {
   double tracking_parallax_rate;
 };
 
+// Configuration for optimization parameters
 struct OptimizationConfig{
   OptimizationConfig() {}
   void Load(const YAML::Node& optimization_node){
-    mono_point = optimization_node["mono_point"].as<double>();
-    stereo_point = optimization_node["stereo_point"].as<double>();
-    mono_line = optimization_node["mono_line"].as<double>();
-    stereo_line = optimization_node["stereo_line"].as<double>();
+    mono_point = optimization_node["mono_point"].as<int>();
+    stereo_point = optimization_node["stereo_point"].as<int>();
+    mono_line = optimization_node["mono_line"].as<int>();
+    stereo_line = optimization_node["stereo_line"].as<int>();
     rate = optimization_node["rate"].as<double>();    
   }
 
@@ -163,6 +168,7 @@ struct OptimizationConfig{
   double rate;
 };
 
+// Configuration for ROS topic publishers
 struct RosPublisherConfig{
   RosPublisherConfig() {}
   void Load(const YAML::Node& ros_publisher_node){
@@ -198,7 +204,7 @@ struct RosPublisherConfig{
   std::string reloc_topic;
 };
 
-
+// Main configuration structure for visual odometry
 struct VisualOdometryConfigs{
   std::string dataroot;
   std::string camera_config_path;
@@ -216,30 +222,90 @@ struct VisualOdometryConfigs{
 
   VisualOdometryConfigs() {}
 
-  VisualOdometryConfigs(const std::string& config_file_, const std::string& model_dir_){
-    model_dir = model_dir_;
+  VisualOdometryConfigs(const std::string& config_path, const std::string& model_dir) {
+    std::cout << "config_file = " << config_path << std::endl;
+    YAML::Node config = YAML::LoadFile(config_path);
+    
+    // Basic configuration
+    camera_config_path = config_path;
+    this->model_dir = model_dir;
+    std::cout << "model_dir = " << model_dir << std::endl;
 
-    std::cout << "config_file = " << config_file_ << std::endl;
-    if(!FileExists(config_file_)){
-      std::cout << "config file: " << config_file_ << " doesn't exist" << std::endl;
-      return;
+    // Load PLNet configuration
+    if (config["plnet"]) {
+      std::cout << "Loading PLNet config..." << std::endl;
+      try {
+        plnet_config.Load(config["plnet"]);
+        std::cout << "PLNet config loaded successfully" << std::endl;
+        std::cout << "Setting model paths..." << std::endl;
+        plnet_config.SetModelPath(model_dir);
+        std::cout << "Model paths set successfully" << std::endl;
+      } catch (const YAML::Exception& e) {
+        std::cout << "Error loading PLNet config: " << e.what() << std::endl;
+        throw;
+      }
     }
-    YAML::Node file_node = YAML::LoadFile(config_file_);
-
-    plnet_config.Load(file_node["plnet"]);
-    plnet_config.SetModelPath(model_dir);
-
-    point_matcher_config.Load(file_node["point_matcher"]);
-    point_matcher_config.onnx_file = ConcatenateFolderAndFileName(model_dir, point_matcher_config.onnx_file);
-    point_matcher_config.engine_file = ConcatenateFolderAndFileName(model_dir, point_matcher_config.engine_file);
-
-    keyframe_config.Load(file_node["keyframe"]);
-    tracking_optimization_config.Load(file_node["optimization"]["tracking"]);
-    backend_optimization_config.Load(file_node["optimization"]["backend"]);
-    ros_publisher_config.Load(file_node["ros_publisher"]);
+    
+    // Load point matcher configuration
+    if (config["point_matcher"]) {
+      std::cout << "Loading Point Matcher config..." << std::endl;
+      try {
+        point_matcher_config.Load(config["point_matcher"]);
+        std::cout << "Point Matcher config loaded successfully" << std::endl;
+        // Set model paths for point matcher
+        point_matcher_config.onnx_file = ConcatenateFolderAndFileName(model_dir, point_matcher_config.onnx_file);
+        point_matcher_config.engine_file = ConcatenateFolderAndFileName(model_dir, point_matcher_config.engine_file);
+      } catch (const YAML::Exception& e) {
+        std::cout << "Error loading Point Matcher config: " << e.what() << std::endl;
+        throw;
+      }
+    }
+    
+    // Load keyframe configuration
+    if (config["keyframe"]) {
+      std::cout << "Loading Keyframe config..." << std::endl;
+      try {
+        keyframe_config.Load(config["keyframe"]);
+        std::cout << "Keyframe config loaded successfully" << std::endl;
+      } catch (const YAML::Exception& e) {
+        std::cout << "Error loading Keyframe config: " << e.what() << std::endl;
+        throw;
+      }
+    }
+    
+    // Load optimization configuration
+    if (config["optimization"]) {
+      std::cout << "Loading Optimization config..." << std::endl;
+      try {
+        if (config["optimization"]["tracking"]) {
+          tracking_optimization_config.Load(config["optimization"]["tracking"]);
+          std::cout << "Tracking optimization config loaded successfully" << std::endl;
+        }
+        if (config["optimization"]["backend"]) {
+          backend_optimization_config.Load(config["optimization"]["backend"]);
+          std::cout << "Backend optimization config loaded successfully" << std::endl;
+        }
+      } catch (const YAML::Exception& e) {
+        std::cout << "Error loading Optimization config: " << e.what() << std::endl;
+        throw;
+      }
+    }
+    
+    // Load ROS publisher configuration
+    if (config["ros_publisher"]) {
+      std::cout << "Loading ROS Publisher config..." << std::endl;
+      try {
+        ros_publisher_config.Load(config["ros_publisher"]);
+        std::cout << "ROS Publisher config loaded successfully" << std::endl;
+      } catch (const YAML::Exception& e) {
+        std::cout << "Error loading ROS Publisher config: " << e.what() << std::endl;
+        throw;
+      }
+    }
   }
 };
 
+// Configuration for map refinement
 struct MapRefinementConfigs{
   PointMatcherConfig point_matcher_config;
   OptimizationConfig map_optimization_config;
@@ -263,6 +329,7 @@ struct MapRefinementConfigs{
   }
 };
 
+// Configuration for relocalization
 struct RelocalizationConfigs{
   std::string dataroot;
   std::string camera_config_path;
@@ -303,6 +370,5 @@ struct RelocalizationConfigs{
     ros_publisher_config.Load(file_node["ros_publisher"]);
   }
 };
-
 
 #endif  // READ_CONFIGS_H_

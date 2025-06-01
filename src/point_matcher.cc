@@ -14,7 +14,7 @@ PointMatcher::PointMatcher(const PointMatcherConfig& config) : _config(config){
 
     _lightglue = std::shared_ptr<SuperPointLightGlue>(new SuperPointLightGlue(_config));
     if (!_lightglue->build()){
-      std::cout << "Erron lightglue building" << std::endl;
+      throw std::runtime_error("Error lightglue building from file: " + _config.onnx_file);
     }
   }else if(_config.matcher == 1){
     _config.dla_core = -1;
@@ -28,11 +28,10 @@ PointMatcher::PointMatcher(const PointMatcherConfig& config) : _config(config){
 
     _superglue = std::shared_ptr<SuperGlue>(new SuperGlue(_config));
     if (!_superglue->build()){
-      std::cout << "Erron superglue building" << std::endl;
+      throw std::runtime_error("Error superglue building from file: " + _config.onnx_file);
     }
   }else{
-    std::cout << "Plese select the point matcher! (0 for lightglue and 1 for superglue)" << std::endl;
-    exit(0);
+    throw std::runtime_error("Please select the point matcher! (0 for lightglue and 1 for superglue)");
   }
 }
 
