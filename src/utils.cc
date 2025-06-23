@@ -1,4 +1,3 @@
-
 #include "utils.h"
 #include <dirent.h>
 #include <Eigen/Core>
@@ -280,6 +279,14 @@ void WriteTxt(const std::string file_path,
 
 void SaveTumTrajectoryToFile(const std::string file_path, 
     const std::vector<std::pair<double, Eigen::Matrix4d>>& trajectory){
+  std::string::size_type pos = file_path.find_last_of('/');
+  if (pos != std::string::npos) {
+    std::string dir_path = file_path.substr(0, pos);
+    if (!dir_path.empty()) {
+      MakeDir(dir_path);
+    }
+  }
+
   std::cout << "Save file to " << file_path << std::endl;
   std::ofstream f;
   f.open(file_path.c_str());
@@ -298,6 +305,14 @@ void SaveTumTrajectoryToFile(const std::string file_path,
 
 void SaveTumTrajectoryToFile(const std::string file_path, 
     const std::vector<std::pair<std::string, Eigen::Matrix4d>>& trajectory){
+  std::string::size_type pos = file_path.find_last_of('/');
+  if (pos != std::string::npos) {
+    std::string dir_path = file_path.substr(0, pos);
+    if (!dir_path.empty()) {
+      MakeDir(dir_path);
+    }
+  }
+
   std::cout << "Save file to " << file_path << std::endl;
   std::ofstream f;
   f.open(file_path.c_str());
