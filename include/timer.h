@@ -1,26 +1,35 @@
-#ifndef _TIMER_H_
-#define _TIMER_H_
+#ifndef AIR_SLAM_TIMER_H_
+#define AIR_SLAM_TIMER_H_
 
-#include <sys/time.h>
-#include <stdio.h>
+#include <chrono>
+#include <iostream>
+#include <map>
+#include <string>
+#include <vector>
 
-typedef struct{
-	struct timeval start;
-	struct timeval stop;
-}Timer;
+class Timer {
+public:
+	Timer();
+	~Timer();
 
-void startTimer(Timer *pTimer);
-void stopTimer(Timer *pTimer);
-double getElapsedTime(Timer *pTimer);
-void writeTimeToFile(double arrTime[], int nCount, int nFrameNo, char *filename);
+	void Start(const std::string& name);
+	void Stop(const std::string& name);
 
-#define INITIALIZE_TIMER Timer stTimer; double arrTime[100]
-#define START_TIMER startTimer(&stTimer)
-#define STOP_TIMER(text) stopTimer(&stTimer); printf(text); printf(": %.1f\n",getElapsedTime(&stTimer))
-#define END_TIMER(nIndex) stopTimer(&stTimer); arrTime[nIndex] = getElapsedTime(&stTimer)
-#define ACC_TIMER(nIndex) stopTimer(&stTimer); arrTime[nIndex] += getElapsedTime(&stTimer)
-#define WRITE_TIME_FILE(nCount, nFrameNo, filename) writeTimeToFile(arrTime, nCount, nFrameNo, (char *)filename)
+	double GetDuration(const std::string& name) const;
+	void PrintLastFrameStats() const;
+	void SaveToFile(const std::string& file_path);
+	void NextFrame();
 
-#endif//_TIMER_H_
+private:
+	using Clock = std::chrono::high_resolution_clock;
+	using TimePoint = std::chrono::time_point<Clock>;
+
+	std::map<std::string, TimePoint> start_times_;
+	std::map<std::string, double> frame_durations_ms_;
+	std::vector<std::map<std::string, double>> all_timings_;
+	std::vector<std::string> ordered_keys_;
+};
+
+#endif // AIR_SLAM_TIMER_H_
 
 

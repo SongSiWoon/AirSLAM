@@ -19,12 +19,12 @@
 #include "g2o_optimization/types.h"
 #include "timer.h"
 
-Map::Map(): _imu_init(false), imu_init_stage(0){
+Map::Map(): _imu_init(false), imu_init_stage(0), timer_(new Timer()){
 }
 
 Map::Map(OptimizationConfig& backend_optimization_config, CameraPtr camera, RosPublisherPtr ros_publisher):
     _backend_optimization_config(backend_optimization_config), _camera(camera),
-    _ros_publisher(ros_publisher), _imu_init(false), imu_init_stage(0){
+    _ros_publisher(ros_publisher), _imu_init(false), imu_init_stage(0), timer_(new Timer()){
 }
 
 void Map::InsertKeyframe(FramePtr frame){

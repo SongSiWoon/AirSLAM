@@ -18,6 +18,7 @@
 #include "g2o_optimization/types.h"
 #include "ros_publisher.h"
 #include "bow/database.h"
+#include "timer.h"
 
 class MapRefiner;
 
@@ -136,6 +137,8 @@ private:
 
   DatabasePtr _junction_database;
   SuperpointVocabularyPtr _junction_voc;
+
+  std::unique_ptr<Timer> timer_;
 };
 
 typedef std::shared_ptr<Map> MapPtr;

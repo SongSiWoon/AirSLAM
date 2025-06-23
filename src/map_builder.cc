@@ -30,6 +30,8 @@ MapBuilder::MapBuilder(VisualOdometryConfigs& configs, const rclcpp::Node::Share
   _ros_publisher = std::shared_ptr<RosPublisher>(new RosPublisher(configs.ros_publisher_config));
   _map = std::shared_ptr<Map>(new Map(_configs.backend_optimization_config, _camera, _ros_publisher));
 
+  timer_ = std::make_unique<Timer>();
+
   _feature_thread = std::thread(&MapBuilder::ExtractFeatureThread, this);
   _tracking_thread = std::thread(&MapBuilder::TrackingThread, this);
 }
@@ -66,6 +68,8 @@ void MapBuilder::ExtractFeatureThread(){
         _data_buffer.pop();
         _buffer_mutex.unlock();
 
+        timer_->NextFrame();
+
         int frame_id = input_data->index;
         double timestamp = input_data->time;
         cv::Mat image_left_rect = input_data->image_left.clone();
@@ -80,8 +84,12 @@ void MapBuilder::ExtractFeatureThread(){
         FrameType frame_type;
         if(!_init || _insert_next_keyframe){
             Eigen::Matrix<float, 259, Eigen::Dynamic> junctions;
+            timer_->Start("FeatureDetection_Stereo");
             _feature_detector->Detect(image_left_rect, image_right_rect, left_features, right_features, left_lines, right_lines, junctions);
+            timer_->Stop("FeatureDetection_Stereo");
+            timer_->Start("FeatureMatching_Stereo");
             _point_matcher->MatchingPoints(left_features, right_features, stereo_matches, false);
+            timer_->Stop("FeatureMatching_Stereo");
             frame->AddLeftFeatures(left_features, left_lines);
             good_stereo_point = frame->AddRightFeatures(right_features, right_lines, stereo_matches);
             frame_type = _init ? FrameType::KeyFrame : FrameType::InitializationFrame;
@@ -91,14 +99,18 @@ void MapBuilder::ExtractFeatureThread(){
             frame->AddJunctions(junctions);
       // SaveLineDetectionResult(image_left_rect, left_lines, _configs.saving_dir, std::to_string(frame->GetFrameId()));
         }else{
+            timer_->Start("FeatureDetection_Mono");
             _feature_detector->Detect(image_left_rect, left_features);
+            timer_->Stop("FeatureDetection_Mono");
             frame->AddLeftFeatures(left_features, left_lines);
             frame_type = FrameType::NormalFrame;
         }
 
         if(_init){
             const Eigen::Matrix<float, 259, Eigen::Dynamic> features_last_keyframe = _last_keyframe_feature->GetAllFeatures();
+            timer_->Start("FeatureMatching_Temporal");
             _point_matcher->MatchingPoints(features_last_keyframe, left_features, matches, true);
+            timer_->Stop("FeatureMatching_Temporal");
             int enough_match = AddKeyframeCheck(_last_keyframe_feature, frame, matches);
 
             if(enough_match == 0){
@@ -201,7 +213,9 @@ void MapBuilder::TrackingThread(){
     _preinteration_keyframe.AddBatchData(batch_imu_data, ref_keyframe->GetTimestamp(), timestamp);
     frame->SetIMUPreinteration(_preinteration_keyframe);
 
+    timer_->Start("TrackFrame");
     int track_inliers = TrackFrame(ref_keyframe, frame, matches, _preinteration_keyframe);
+    timer_->Stop("TrackFrame");
 
     frame->SetPreviousFrame(ref_keyframe);
 
@@ -571,6 +585,14 @@ void MapBuilder::Stop(){
   _ros_publisher->ShutDown();
   _feature_thread.join();
   _tracking_thread.join();
+
+  if (!_configs.saving_dir.empty()) {
+    std::string file_path = ConcatenateFolderAndFileName(_configs.saving_dir, "vo_timings.csv");
+    timer_->SaveToFile(file_path);
+  }
+
+  // save trajectory
+  SaveTrajectory();
 }
 
 bool MapBuilder::IsStopped(){

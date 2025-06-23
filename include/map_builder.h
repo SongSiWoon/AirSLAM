@@ -18,6 +18,7 @@
 #include "map.h"
 #include "ros_publisher.h"
 #include "g2o_optimization/types.h"
+#include "timer.h"
 
 struct InputData{
   size_t index;
@@ -127,6 +128,8 @@ private:
   FeatureDetectorPtr _feature_detector;
   RosPublisherPtr _ros_publisher;
   MapPtr _map;
+
+  std::unique_ptr<Timer> timer_;
 };
 
 #endif  // MAP_BUILDER_H_
