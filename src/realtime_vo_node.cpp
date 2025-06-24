@@ -3,6 +3,7 @@
 #include <opencv2/opencv.hpp>
 #include <cmath>
 #include <yaml-cpp/yaml.h>
+#include <rclcpp/qos.hpp>
 
 RealtimeVONode::RealtimeVONode() : Node("realtime_vo_node") {
     // Declare parameters
@@ -54,7 +55,7 @@ RealtimeVONode::RealtimeVONode() : Node("realtime_vo_node") {
     // Setup IMU subscriber
     if (use_imu_) {
         imu_sub_ = this->create_subscription<sensor_msgs::msg::Imu>(
-            "imu/data", 10,
+            "imu/data", rclcpp::SensorDataQoS(),
             std::bind(&RealtimeVONode::imuCallback, this, std::placeholders::_1));
     }
 

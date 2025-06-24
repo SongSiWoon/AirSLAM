@@ -8,16 +8,13 @@
 #include "utils.h"
 
 Timer::Timer() {
-	// Constructor
 }
 
 Timer::~Timer() {
-	// Destructor
 }
 
 void Timer::Start(const std::string& name) {
 	start_times_[name] = Clock::now();
-	// if key is new, add to ordered_keys_
 	if (std::find(ordered_keys_.begin(), ordered_keys_.end(), name) ==
 		ordered_keys_.end()) {
 		ordered_keys_.push_back(name);
@@ -79,7 +76,6 @@ void Timer::SaveToFile(const std::string& file_path) {
         }
     }
 
-	// --- 1. Calculate Summary Statistics First ---
 	struct Stats {
 		double average = 0.0;
 		double min_val = 0.0;
@@ -91,30 +87,26 @@ void Timer::SaveToFile(const std::string& file_path) {
 
 	for (const auto& key : ordered_keys_) {
 		std::vector<double> values;
-		double sum = 0.0;
 		for (const auto& frame_data : all_timings_) {
 			auto it = frame_data.find(key);
-			if (it != frame_data.end()) {
-				if(it->second > 0) {
-					values.push_back(it->second);
-				}
-				sum += it->second;
+			if (it != frame_data.end() && it->second > 0) {
+				values.push_back(it->second);
 			}
 		}
 
 		Stats stats;
-		stats.average = all_timings_.empty() ? 0.0 : sum / all_timings_.size();
-
 		if (!values.empty()) {
+			double sum = std::accumulate(values.begin(), values.end(), 0.0);
+			stats.average = sum / values.size();
+
 			std::sort(values.begin(), values.end());
 			stats.min_val = values.front();
 			stats.max_val = values.back();
 			stats.median = values[values.size() / 2];
 
 			double variance_sum = 0.0;
-			double values_mean = std::accumulate(values.begin(), values.end(), 0.0) / values.size();
 			for(const double& val : values) {
-				variance_sum += (val - values_mean) * (val - values_mean);
+				variance_sum += (val - stats.average) * (val - stats.average);
 			}
 			stats.std_dev = std::sqrt(variance_sum / values.size());
 		}
@@ -122,7 +114,6 @@ void Timer::SaveToFile(const std::string& file_path) {
 	}
 
 
-	// --- 2. Write to file ---
 	std::ofstream file(file_path);
 	if (!file.is_open()) {
 		std::cerr << "Error: Could not open file for writing: " << file_path
@@ -130,7 +121,6 @@ void Timer::SaveToFile(const std::string& file_path) {
 		return;
 	}
 
-	// Write Summary Statistics
 	file << "--- Summary Statistics (ms) ---\n";
 	file << "Metric,Average,Min,Max,Median,StdDev\n";
 	for (const auto& key : ordered_keys_) {
@@ -138,7 +128,6 @@ void Timer::SaveToFile(const std::string& file_path) {
 		file << key << "," << stats.average << "," << stats.min_val << "," << stats.max_val << "," << stats.median << "," << stats.std_dev << std::endl;
 	}
 
-	// Write raw data
 	file << "\n--- Raw Frame Timings (ms) ---\n";
 	file << "Frame";
 	for (const auto& key : ordered_keys_) {
@@ -146,7 +135,6 @@ void Timer::SaveToFile(const std::string& file_path) {
 	}
 	file << std::endl;
 
-	// Data
 	for (size_t i = 0; i < all_timings_.size(); ++i) {
 		file << i;
 		const auto& frame_data = all_timings_[i];
