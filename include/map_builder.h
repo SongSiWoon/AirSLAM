@@ -21,7 +21,7 @@
 #include "timer.h"
 
 struct InputData{
-  size_t index;
+  int index;
   double time;
   cv::Mat image_left;
   cv::Mat image_right;
@@ -50,15 +50,6 @@ struct TrackingData{
   FramePtr ref_keyframe;
   std::vector<cv::DMatch> matches;
   InputDataPtr input_data;
-
-  TrackingData() {}
-  TrackingData& operator =(TrackingData& other){
-		frame = other.frame;
-		ref_keyframe = other.ref_keyframe;
-		matches = other.matches;
-		input_data = other.input_data;
-		return *this;
-	}
 };
 typedef std::shared_ptr<TrackingData> TrackingDataPtr;
 

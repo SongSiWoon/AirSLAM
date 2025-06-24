@@ -17,7 +17,7 @@ def generate_launch_description():
     default_model_dir = pkg_air_slam / 'output'
     default_save_dir  = pkg_air_slam / 'debug'
     default_rviz_cfg  = pkg_air_slam / 'rviz/vo.rviz'
-    default_dataroot  = pkg_air_slam / 'dataset/mocap1/stereo_dataset'
+    default_dataroot  = pkg_air_slam / 'dataset/06.16_rtk_01/stereo_dataset'
 
     # LaunchConfiguration로 선언한 인자는 반드시 DeclareLaunchArgument가 필요
     return LaunchDescription([
@@ -27,6 +27,7 @@ def generate_launch_description():
         DeclareLaunchArgument('model_dir',         default_value=str(default_model_dir)),
         DeclareLaunchArgument('saving_dir',        default_value=str(default_save_dir)),
         DeclareLaunchArgument('visualization',     default_value='false'),
+        DeclareLaunchArgument('log_level',         default_value='info'),
 
         Node(
             package='air_slam',
@@ -39,7 +40,8 @@ def generate_launch_description():
                 'camera_config_path': LaunchConfiguration('camera_config_path'),
                 'model_dir'         : LaunchConfiguration('model_dir'),
                 'saving_dir'        : LaunchConfiguration('saving_dir'),
-            }]
+            }],
+            arguments=['--ros-args', '--log-level', LaunchConfiguration('log_level')]
         ),
 
         GroupAction([

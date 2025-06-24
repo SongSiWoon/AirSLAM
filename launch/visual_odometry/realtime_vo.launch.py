@@ -26,6 +26,7 @@ def generate_launch_description():
         DeclareLaunchArgument('model_dir',         default_value=str(default_model_dir)),
         DeclareLaunchArgument('saving_dir',        default_value=str(default_save_dir)),
         DeclareLaunchArgument('visualization',     default_value='false'),
+        DeclareLaunchArgument('log_level',         default_value='info'),
 
         Node(
             package='air_slam',
@@ -42,7 +43,8 @@ def generate_launch_description():
                 'camera_config_path': LaunchConfiguration('camera_config_path'),
                 'model_dir'         : LaunchConfiguration('model_dir'),
                 'saving_dir'        : LaunchConfiguration('saving_dir'),
-            }]
+            }],
+            arguments=['--ros-args', '--log-level', LaunchConfiguration('log_level')]
         ),
 
         GroupAction([

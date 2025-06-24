@@ -1,9 +1,11 @@
 #include <stdlib.h>
+#include <string>
 
 #include "timer.h"
 #include <algorithm>
 #include <fstream>
 #include <iomanip>
+#include <iostream>
 #include <numeric>
 #include "utils.h"
 
@@ -27,7 +29,16 @@ void Timer::Stop(const std::string& name) {
 	if (start_it != start_times_.end()) {
 		double duration = std::chrono::duration<double, std::milli>(end_time - start_it->second).count();
 		frame_durations_ms_[name] += duration;
+		if (log_callback_) {
+			char buffer[100];
+			snprintf(buffer, sizeof(buffer), "%-30s: %.3f ms", name.c_str(), duration);
+			log_callback_(buffer);
+		}
 	}
+}
+
+void Timer::SetLogCallback(LogCallback callback) {
+	log_callback_ = callback;
 }
 
 double Timer::GetDuration(const std::string& name) const {

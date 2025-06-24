@@ -61,6 +61,7 @@ bool PLNet::build() {
   if (!config_stage1) {
     return false;
   }
+  config_stage1->setMaxWorkspaceSize(4ULL << 30);
   auto parser_stage1 = TensorRTUniquePtr<nvonnxparser::IParser>(nvonnxparser::createParser(*network_stage1, gLogger.getTRTLogger()));
   if (!parser_stage1) {
     return false;
@@ -118,6 +119,7 @@ bool PLNet::build() {
   if (!config_stage2) {
     return false;
   }
+  config_stage2->setMaxWorkspaceSize(4ULL << 30);
   auto parser_stage2 = TensorRTUniquePtr<nvonnxparser::IParser>(nvonnxparser::createParser(*network_stage2, gLogger.getTRTLogger()));
   if (!parser_stage2) {
     return false;

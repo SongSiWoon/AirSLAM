@@ -31,6 +31,11 @@ MapBuilder::MapBuilder(VisualOdometryConfigs& configs, const rclcpp::Node::Share
   _map = std::shared_ptr<Map>(new Map(_configs.backend_optimization_config, _camera, _ros_publisher));
 
   timer_ = std::make_unique<Timer>();
+  if (node) {
+    timer_->SetLogCallback([logger = node->get_logger()](const std::string& message) {
+      RCLCPP_DEBUG(logger, "%s", message.c_str());
+    });
+  }
 
   _feature_thread = std::thread(&MapBuilder::ExtractFeatureThread, this);
   _tracking_thread = std::thread(&MapBuilder::TrackingThread, this);
@@ -93,11 +98,8 @@ void MapBuilder::ExtractFeatureThread(){
             frame->AddLeftFeatures(left_features, left_lines);
             good_stereo_point = frame->AddRightFeatures(right_features, right_lines, stereo_matches);
             frame_type = _init ? FrameType::KeyFrame : FrameType::InitializationFrame;
-      frame->AddJunctions(junctions);
-      frame->AddJunctions(junctions);
-      // SaveLineDetectionResult(image_left_rect, left_lines, _configs.saving_dir, std::to_string(frame->GetFrameId()));
+
             frame->AddJunctions(junctions);
-      // SaveLineDetectionResult(image_left_rect, left_lines, _configs.saving_dir, std::to_string(frame->GetFrameId()));
         }else{
             timer_->Start("FeatureDetection_Mono");
             _feature_detector->Detect(image_left_rect, left_features);
@@ -170,6 +172,7 @@ void MapBuilder::TrackingThread(){
       continue;
     }
 
+    timer_->Start("TrackingThread_Iteration");
     TrackingDataPtr tracking_data;
     _tracking_mutex.lock();
     tracking_data = _tracking_data_buffer.front();
@@ -231,6 +234,7 @@ void MapBuilder::TrackingThread(){
     }
 
     PublishFrame(frame, image_left_rect, frame_type, matches);
+    timer_->Stop("TrackingThread_Iteration");
   }
 
   _stop_mutex.lock();
@@ -492,9 +496,10 @@ void MapBuilder::InsertKeyframe(FramePtr frame){
       frame->SetLineTrackId(i, _line_track_id++);
     }
   }
-
+  timer_->Start("LBA");
   // insert keyframe to map
   _map->InsertKeyframe(frame);
+  timer_->Stop("LBA");
 
   _track_id = _map->UpdateFrameTrackIds(_track_id);
   _line_track_id = _map->UpdateFrameLineTrackIds(_line_track_id);
