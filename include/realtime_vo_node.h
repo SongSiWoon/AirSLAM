@@ -10,14 +10,20 @@
 #include "message_filters/subscriber.h"
 #include "message_filters/synchronizer.h"
 #include "message_filters/sync_policies/approximate_time.h"
+#include <memory>
+#include <atomic>
 
 #include "vo_core.h"
 
 class RealtimeVONode : public rclcpp::Node {
 public:
-    RealtimeVONode();
+    // Factory method to create shared_ptr instance
+    static std::shared_ptr<RealtimeVONode> create();
+    
+    void initialize();
 
 private:
+    RealtimeVONode();  // Private constructor
     // Callback functions for sensor data
     void stereoImageCallback(const sensor_msgs::msg::Image::ConstSharedPtr& left_msg,
                             const sensor_msgs::msg::Image::ConstSharedPtr& right_msg);
@@ -46,6 +52,9 @@ private:
     std::deque<ImuData> imu_data_;  // Changed from vector to deque for efficient front/back operations
     double last_image_time_;
     
+    // Configuration storage
+    VisualOdometryConfigs configs_;
+    
     // Synchronization parameters
     double max_stereo_time_diff_;  // Maximum time difference between stereo images
     double max_imu_time_diff_;     // Maximum time difference between IMU data and images
@@ -55,6 +64,9 @@ private:
     std::string model_dir_;
     std::string saving_dir_;
     bool use_imu_;
+    
+    // Thread safety flag
+    std::atomic<bool> is_processing_;
 };
 
 #endif // REALTIME_VO_NODE_H_ 

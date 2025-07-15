@@ -26,6 +26,7 @@ def generate_launch_description():
         DeclareLaunchArgument('model_dir',         default_value=str(default_model_dir)),
         DeclareLaunchArgument('saving_dir',        default_value=str(default_save_dir)),
         DeclareLaunchArgument('visualization',     default_value='false'),
+        DeclareLaunchArgument('use_imu',           default_value='false'),
         DeclareLaunchArgument('log_level',         default_value='info'),
 
         Node(

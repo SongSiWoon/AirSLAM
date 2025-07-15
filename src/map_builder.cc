@@ -46,32 +46,89 @@ bool MapBuilder::UseIMU(){
 }
 
 void MapBuilder::AddInput(InputDataPtr data){
-  cv::Mat image_left_rect, image_right_rect;
-  _camera->UndistortImage(data->image_left, data->image_right, image_left_rect, image_right_rect);
-  data->image_left = image_left_rect;
-  data->image_right = image_right_rect;
-
-  while(_data_buffer.size() > 3 && !_shutdown){
-    usleep(2000);
+  if (!data) {
+    std::cout << "Warning: Null input data received" << std::endl;
+    return;
   }
 
-  _buffer_mutex.lock();
-  _data_buffer.push(data);
-  _buffer_mutex.unlock();
+  if (_shutdown) {
+    std::cout << "Warning: MapBuilder is shutting down, ignoring input" << std::endl;
+    return;
+  }
+
+  if (data->image_left.empty() || data->image_right.empty()) {
+    std::cout << "Warning: Empty images in input data" << std::endl;
+    return;
+  }
+
+  try {
+    cv::Mat image_left_rect, image_right_rect;
+    _camera->UndistortImage(data->image_left, data->image_right, image_left_rect, image_right_rect);
+    
+    if (image_left_rect.empty() || image_right_rect.empty()) {
+      std::cout << "Warning: Undistortion failed, empty result images" << std::endl;
+      return;
+    }
+    
+    data->image_left = image_left_rect;
+    data->image_right = image_right_rect;
+  } catch (const std::exception& e) {
+    std::cout << "Error in image undistortion: " << e.what() << std::endl;
+    return;
+  }
+
+  // Improved buffer management with timeout
+  const int MAX_BUFFER_SIZE = 5;
+  const int MAX_WAIT_ITERATIONS = 500; // 1 second timeout (500 * 2000us)
+  int wait_count = 0;
+  
+  while(!_shutdown && wait_count < MAX_WAIT_ITERATIONS){
+    {
+      std::lock_guard<std::mutex> lock(_buffer_mutex);
+      if(_data_buffer.size() < MAX_BUFFER_SIZE) {
+        _data_buffer.push(data);
+        return;
+      }
+    }
+    usleep(2000);
+    wait_count++;
+  }
+
+  // If buffer is still full after timeout, drop the oldest frame
+  {
+    std::lock_guard<std::mutex> lock(_buffer_mutex);
+    if (_shutdown) {
+      std::cout << "Warning: MapBuilder shutting down, dropping frame" << std::endl;
+      return;
+    }
+    if (_data_buffer.size() >= MAX_BUFFER_SIZE) {
+      std::cout << "Warning: Buffer overflow, dropping oldest frame" << std::endl;
+      _data_buffer.pop();
+    }
+    _data_buffer.push(data);
+  }
 }
 
 void MapBuilder::ExtractFeatureThread(){
-    while(!_shutdown || !_data_buffer.empty()){
-        if(_data_buffer.empty()){
+    while(!_shutdown) {
+        InputDataPtr input_data;
+        
+        // Safe buffer access with nullptr check
+        {
+            std::lock_guard<std::mutex> lock(_buffer_mutex);
+            if(_data_buffer.empty()){
+                // No data available, release lock and sleep
+            } else {
+                input_data = _data_buffer.front();
+                _data_buffer.pop();
+            }
+        }
+        
+        if (!input_data) {
+            if(_shutdown) break;
             usleep(2000);
             continue;
         }
-
-        InputDataPtr input_data;
-        _buffer_mutex.lock();
-        input_data = _data_buffer.front();
-        _data_buffer.pop();
-        _buffer_mutex.unlock();
 
         timer_->NextFrame();
 
@@ -151,11 +208,21 @@ void MapBuilder::ExtractFeatureThread(){
             _last_keyframe_feature = frame;
         }
 
-        while(_tracking_data_buffer.size() > 5){
+        // Improved tracking buffer management
+        const int MAX_TRACKING_BUFFER_SIZE = 5;
+        const int MAX_TRACKING_WAIT_ITERATIONS = 250; // 0.5 second timeout
+        int tracking_wait_count = 0;
+        
+        while(_tracking_data_buffer.size() >= MAX_TRACKING_BUFFER_SIZE && !_shutdown && tracking_wait_count < MAX_TRACKING_WAIT_ITERATIONS){
             usleep(2000);
+            tracking_wait_count++;
         }
 
         _tracking_mutex.lock();
+        if (_tracking_data_buffer.size() >= MAX_TRACKING_BUFFER_SIZE) {
+            std::cout << "Warning: Tracking buffer overflow, dropping oldest frame" << std::endl;
+            _tracking_data_buffer.pop();
+        }
         _tracking_data_buffer.push(tracking_data);
         _tracking_mutex.unlock();
     }
@@ -166,18 +233,27 @@ void MapBuilder::ExtractFeatureThread(){
 }
 
 void MapBuilder::TrackingThread(){
-  while(!_shutdown || !_data_buffer.empty() || !_tracking_data_buffer.empty()){
-    if(_tracking_data_buffer.empty()){
+  while(!_shutdown) {
+    TrackingDataPtr tracking_data;
+    
+    // Safe buffer access with nullptr check
+    {
+      std::lock_guard<std::mutex> lock(_tracking_mutex);
+      if(_tracking_data_buffer.empty()){
+        // No data available, release lock and sleep
+      } else {
+        tracking_data = _tracking_data_buffer.front();
+        _tracking_data_buffer.pop();
+      }
+    }
+    
+    if (!tracking_data) {
+      if(_shutdown) break;
       usleep(2000);
       continue;
     }
 
     timer_->Start("TrackingThread_Iteration");
-    TrackingDataPtr tracking_data;
-    _tracking_mutex.lock();
-    tracking_data = _tracking_data_buffer.front();
-    _tracking_data_buffer.pop();
-    _tracking_mutex.unlock();
 
     FramePtr frame = tracking_data->frame;
     FrameType frame_type = tracking_data->frame_type;
@@ -584,20 +660,41 @@ void MapBuilder::SaveMap(const std::string& map_root){
 }
 
 void MapBuilder::Stop(){
-  _stop_mutex.lock();
-  _shutdown = true;
-  _stop_mutex.unlock();
-  _ros_publisher->ShutDown();
-  _feature_thread.join();
-  _tracking_thread.join();
+  // Set shutdown flag first
+  {
+    std::lock_guard<std::mutex> lock(_stop_mutex);
+    _shutdown = true;
+  }
+  
+  // Wait for threads to complete
+  if (_feature_thread.joinable()) {
+    _feature_thread.join();
+  }
+  if (_tracking_thread.joinable()) {
+    _tracking_thread.join();
+  }
+  
+  // Now it's safe to shutdown publisher
+  if (_ros_publisher) {
+    _ros_publisher->ShutDown();
+  }
 
-  if (!_configs.saving_dir.empty()) {
-    std::string file_path = ConcatenateFolderAndFileName(_configs.saving_dir, "vo_timings.csv");
-    timer_->SaveToFile(file_path);
+  // Save data after threads are stopped
+  if (!_configs.saving_dir.empty() && timer_) {
+    try {
+      std::string file_path = ConcatenateFolderAndFileName(_configs.saving_dir, "vo_timings.csv");
+      timer_->SaveToFile(file_path);
+    } catch (const std::exception& e) {
+      std::cout << "Error saving timer data: " << e.what() << std::endl;
+    }
   }
 
   // save trajectory
-  SaveTrajectory();
+  try {
+    SaveTrajectory();
+  } catch (const std::exception& e) {
+    std::cout << "Error saving trajectory: " << e.what() << std::endl;
+  }
 }
 
 bool MapBuilder::IsStopped(){

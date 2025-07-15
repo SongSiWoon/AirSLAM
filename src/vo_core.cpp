@@ -68,16 +68,43 @@ void VOCore::ProcessImage(const cv::Mat& left_image, const cv::Mat& right_image,
         return;
     }
 
-    // Prepare input data for real-time processing
-    static size_t frame_count = 0;
-    InputDataPtr data = std::shared_ptr<InputData>(new InputData());
-    data->index = frame_count++;
-    data->time = timestamp;
-    data->image_left = left_image;
-    data->image_right = right_image;
-    data->batch_imu_data = imu_data;
+    // Validate input images
+    if (left_image.empty() || right_image.empty()) {
+        if (node_) {
+            RCLCPP_WARN(node_->get_logger(), "Empty images received, skipping processing");
+        }
+        return;
+    }
 
-    map_builder_->AddInput(data);
+    // Check if map_builder is available
+    if (!map_builder_) {
+        if (node_) {
+            RCLCPP_ERROR(node_->get_logger(), "MapBuilder is not initialized");
+        }
+        return;
+    }
+
+    try {
+        // Prepare input data for real-time processing
+        static size_t frame_count = 0;
+        InputDataPtr data = std::make_shared<InputData>();
+        data->index = frame_count++;
+        data->time = timestamp;
+        
+        // Make sure to clone the images to avoid memory sharing issues
+        // Create properly aligned copies
+        data->image_left = cv::Mat();
+        data->image_right = cv::Mat();
+        left_image.copyTo(data->image_left);
+        right_image.copyTo(data->image_right);
+        data->batch_imu_data = imu_data;
+
+        map_builder_->AddInput(data);
+    } catch (const std::exception& e) {
+        if (node_) {
+            RCLCPP_ERROR(node_->get_logger(), "Exception in ProcessImage: %s", e.what());
+        }
+    }
 }
 
 void VOCore::Stop() {
