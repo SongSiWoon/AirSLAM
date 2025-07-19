@@ -76,8 +76,18 @@ RosPublisher::RosPublisher(const RosPublisherConfig& ros_publisher_config): Node
       odometry.pose.pose.orientation.y = q.y();
       odometry.pose.pose.orientation.z = q.z();
       odometry.pose.pose.orientation.w = q.w();
+      
+      if(frame_pose_message->velocity_valid) {
+        Eigen::Vector3d vel_camera = frame_pose_message->pose.block<3, 3>(0, 0).transpose() * frame_pose_message->velocity;
+        odometry.twist.twist.linear.x = vel_camera(0);
+        odometry.twist.twist.linear.y = vel_camera(1);
+        odometry.twist.twist.linear.z = vel_camera(2);
+        odometry.twist.twist.angular.x = 0.0;
+        odometry.twist.twist.angular.y = 0.0;
+        odometry.twist.twist.angular.z = 0.0;
+      }
+      
       _pub_latest_odometry->publish(odometry);
-//      _pub_latest_odometry.publish(odometry);
 
       static tf2_ros::TransformBroadcaster br(this);
       geometry_msgs::msg::TransformStamped transform;

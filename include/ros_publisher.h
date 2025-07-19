@@ -49,6 +49,8 @@ typedef std::shared_ptr<const FeatureMessgae> FeatureMessgaeConstPtr;
 struct FramePoseMessage{
   double time;
   Eigen::Matrix4d pose;
+  Eigen::Vector3d velocity;
+  bool velocity_valid;
 };
 typedef std::shared_ptr<FramePoseMessage> FramePoseMessagePtr;
 typedef std::shared_ptr<const FramePoseMessage> FramePoseMessageConstPtr;

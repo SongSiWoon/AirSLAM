@@ -268,7 +268,7 @@ void MapBuilder::TrackingThread(){
 
     if(frame_type == FrameType::InitializationFrame){
       Eigen::Matrix4d init_pose;
-      init_pose << 1, 0, 0, 0, 0, 0, 1, 0, 0, -1, 0, 1, 0, 0, 0, 1;
+      init_pose << 1, 0, 0, 0, 0, 0, 1, 0, 0, -1, 0, 0, 0, 0, 0, 1;
       // init_pose = Eigen::Matrix4d::Identity();
       frame->SetPose(init_pose);
       frame->SetPoseFixed(true);
@@ -625,6 +625,13 @@ void MapBuilder::PublishFrame(FramePtr frame, cv::Mat& image, FrameType frame_ty
 
   frame_pose_message->time = timestamp;
   frame_pose_message->pose = pose;
+  if(frame->VelocityIsInitialized()) {
+    frame_pose_message->velocity = frame->GetVelocity();
+    frame_pose_message->velocity_valid = true;
+  } else {
+    frame_pose_message->velocity = Eigen::Vector3d::Zero();
+    frame_pose_message->velocity_valid = false;
+  }
   // feature_message->line_track_ids = line_track_ids;
 
   _ros_publisher->PublishFeature(feature_message);

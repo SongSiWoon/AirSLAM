@@ -464,6 +464,8 @@ bool MapUser::Relocalization(cv::Mat& image, Eigen::Matrix4d& pose){
     frame_pose_message->time = now.seconds();
     //frame_pose_message->time = now.toSec();
     frame_pose_message->pose = pose;
+    frame_pose_message->velocity = Eigen::Vector3d::Zero();
+    frame_pose_message->velocity_valid = false;
 
     _reloc_message->times.push_back(now.seconds());
     //_reloc_message->times.push_back(now.toSec());
