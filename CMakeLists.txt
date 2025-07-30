@@ -136,6 +136,9 @@ target_link_libraries(test_feature ${PROJECT_NAME}_lib)
 add_executable(plnet_inference demo/plnet_inference.cpp)
 target_link_libraries(plnet_inference ${PROJECT_NAME}_lib ${catkin_LIBRARIES})
 
+add_executable(light_glue_inference demo/light_glue_inference.cpp)
+target_link_libraries(light_glue_inference ${PROJECT_NAME}_lib)
+
 # Install
 install(TARGETS
   ${PROJECT_NAME}_lib
@@ -144,6 +147,8 @@ install(TARGETS
   map_refinement
   relocalization
   test_feature
+  plnet_inference
+  light_glue_inference
   DESTINATION lib/${PROJECT_NAME}
 )
 
